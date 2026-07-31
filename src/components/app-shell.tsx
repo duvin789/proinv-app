@@ -189,16 +189,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="sidebar-spacer" />
 
-        {workspace.mode === "demo" ? (
-          <div className="demo-note">
-            <div className="demo-note-heading">
-              <span className="status-indicator" aria-hidden="true" />
-              <strong>Modo demostración</strong>
-            </div>
-            <p>Los cambios se guardan en este navegador.</p>
-          </div>
-        ) : null}
-
         <div className="sidebar-account">
           <span className="avatar" aria-hidden="true">
             {workspace.viewer.initials}

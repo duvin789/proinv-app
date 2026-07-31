@@ -7,14 +7,6 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { MemberRole, Viewer } from "@/lib/types";
 
-const demoViewer: Viewer = {
-  id: "demo-user",
-  email: "demo@proinv.app",
-  fullName: "Mariana Torres",
-  role: "owner",
-  initials: "MT",
-};
-
 interface ProfileRow {
   full_name: string | null;
 }
@@ -33,7 +25,7 @@ function claimString(
 }
 
 export const getViewer = cache(async (): Promise<Viewer | null> => {
-  if (!isSupabaseConfigured()) return demoViewer;
+  if (!isSupabaseConfigured()) return null;
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.getClaims();

@@ -1,6 +1,4 @@
 import type {
-  InventoryMovement,
-  MovementInput,
   MovementType,
   Product,
   WorkspaceData,
@@ -106,85 +104,4 @@ export function calculateWorkspaceMetrics(workspace: WorkspaceData) {
     salesRevenue: roundMoney(salesRevenue),
     realizedProfit: roundMoney(realizedProfit),
   };
-}
-
-export function applyMovementToProduct(
-  product: Product,
-  input: MovementInput,
-): { product: Product; movement: InventoryMovement } {
-  const incoming = isIncomingMovement(input.type);
-  const signedQuantity = incoming ? input.quantity : -input.quantity;
-  const nextStock = roundStock(product.currentStock + signedQuantity);
-
-  if (nextStock < 0) {
-    throw new Error(
-      `Stock insuficiente. Hay ${product.currentStock} ${product.unit} disponibles.`,
-    );
-  }
-
-  const suppliedCost =
-    input.unitCost && input.unitCost > 0
-      ? input.unitCost
-      : product.averageCost || product.purchasePrice;
-  let nextAverageCost = product.averageCost || product.purchasePrice;
-
-  if (incoming && input.quantity > 0) {
-    const previousValue = product.currentStock * nextAverageCost;
-    const incomingValue = input.quantity * suppliedCost;
-    const valuationStock = product.currentStock + input.quantity;
-    nextAverageCost =
-      valuationStock > 0
-        ? roundMoney((previousValue + incomingValue) / valuationStock)
-        : roundMoney(suppliedCost);
-  }
-
-  const movementCost = incoming ? suppliedCost : nextAverageCost;
-  const saleUnitPrice =
-    input.type === "sale"
-      ? input.saleUnitPrice || product.salePrice
-      : input.saleUnitPrice || null;
-  const totalCost = roundMoney(input.quantity * movementCost);
-  const revenue =
-    input.type === "sale" && saleUnitPrice
-      ? roundMoney(input.quantity * saleUnitPrice)
-      : 0;
-  const grossProfit =
-    input.type === "sale" ? roundMoney(revenue - totalCost) : 0;
-
-  const now = new Date().toISOString();
-  const updatedProduct: Product = {
-    ...product,
-    currentStock: nextStock,
-    averageCost: roundMoney(nextAverageCost),
-    purchasePrice:
-      input.type === "purchase" ? roundMoney(suppliedCost) : product.purchasePrice,
-    updatedAt: now,
-  };
-
-  return {
-    product: updatedProduct,
-    movement: {
-      id: crypto.randomUUID(),
-      organizationId: product.organizationId,
-      productId: product.id,
-      warehouseId: input.warehouseId,
-      type: input.type,
-      quantity: roundStock(input.quantity),
-      stockBefore: product.currentStock,
-      stockAfter: nextStock,
-      unitCost: roundMoney(movementCost),
-      saleUnitPrice,
-      totalCost,
-      revenue,
-      grossProfit,
-      note: input.note?.trim() || null,
-      reference: input.reference?.trim() || null,
-      occurredAt: now,
-      createdBy: "demo-user",
-    },
-  };
-}
-
-export function cloneWorkspace(workspace: WorkspaceData): WorkspaceData {
-  return JSON.parse(JSON.stringify(workspace)) as WorkspaceData;
 }

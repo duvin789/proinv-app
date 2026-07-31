@@ -1,5 +1,3 @@
-export type WorkspaceMode = "demo" | "supabase";
-
 export type MemberRole = "owner" | "admin" | "operator" | "viewer";
 
 export type MovementType =
@@ -99,7 +97,6 @@ export interface InventoryMovement {
 }
 
 export interface WorkspaceData {
-  mode: WorkspaceMode;
   viewer: Viewer;
   organization: Organization;
   categories: Category[];

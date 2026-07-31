@@ -101,7 +101,7 @@ async function ensureSupabase<T>(
 ): Promise<ActionResult<T> | null> {
   if (!isSupabaseConfigured()) {
     return dataError(
-      "Esta acción usa el modo demo en el navegador. Conecta Supabase para guardarla en la nube.",
+      "Supabase no está configurado. Agrega las variables de entorno antes de continuar.",
     );
   }
   const viewer = await requireViewer();

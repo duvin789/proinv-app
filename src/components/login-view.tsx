@@ -37,7 +37,7 @@ export function LoginView({ configured }: { configured: boolean }) {
     if (!configured) {
       setMessage({
         tone: "error",
-        text: "Configura Supabase para usar cuentas reales. También puedes entrar a la demostración.",
+        text: "Supabase no está configurado. Agrega las variables de entorno para acceder.",
       });
       return;
     }
@@ -305,14 +305,14 @@ export function LoginView({ configured }: { configured: boolean }) {
           </form>
 
           {!configured ? (
-            <div className="demo-access">
+            <div className="configuration-alert" role="alert">
               <div>
-                <strong>Supabase aún no está conectado</strong>
-                <p>Explora todas las funciones con datos de demostración.</p>
+                <strong>Configuración requerida</strong>
+                <p>
+                  Agrega la URL y la clave pública de Supabase en las variables
+                  de entorno del servidor.
+                </p>
               </div>
-              <Link href="/dashboard" className="button button-secondary">
-                Entrar a la demostración
-              </Link>
             </div>
           ) : null}
 

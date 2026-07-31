@@ -17,12 +17,12 @@ import { useInventory } from "@/components/inventory-provider";
 import { formatNumber } from "@/lib/format";
 
 const categoryColors = [
-  "#39735f",
-  "#5c6d91",
-  "#a26743",
-  "#856a91",
-  "#9b5f62",
-  "#547886",
+  "#0ea5e9",
+  "#0284c7",
+  "#38bdf8",
+  "#0369a1",
+  "#22d3ee",
+  "#2563eb",
 ];
 
 export function SettingsView() {
@@ -32,7 +32,6 @@ export function SettingsView() {
     updateOrganization,
     createCategory,
     createSupplier,
-    resetDemo,
   } = useInventory();
   const { organization, categories, suppliers, warehouses, viewer } = workspace;
   const canManage = viewer.role === "owner" || viewer.role === "admin";
@@ -499,9 +498,8 @@ export function SettingsView() {
             ))}
           </div>
           <p className="settings-helper">
-            El traslado entre almacenes está preparado en el esquema SQL. La
-            gestión avanzada de ubicaciones puede habilitarse al conectar
-            Supabase.
+            Las existencias se controlan por almacén y cada movimiento conserva
+            la ubicación donde fue registrado.
           </p>
         </section>
 
@@ -515,56 +513,19 @@ export function SettingsView() {
               <p>Estado actual del origen de datos de la aplicación.</p>
             </div>
           </div>
-          <div
-            className={`connection-card ${workspace.mode === "supabase" ? "is-connected" : ""}`}
-          >
+          <div className="connection-card is-connected">
             <span className="connection-icon">
-              {workspace.mode === "supabase" ? (
-                <CheckCircleIcon size={27} weight="fill" />
-              ) : (
-                <DatabaseIcon size={27} weight="duotone" />
-              )}
+              <CheckCircleIcon size={27} weight="fill" />
             </span>
             <div>
-              <strong>
-                {workspace.mode === "supabase"
-                  ? "Supabase conectado"
-                  : "Demostración local"}
-              </strong>
+              <strong>Supabase conectado</strong>
               <p>
-                {workspace.mode === "supabase"
-                  ? "Los datos están protegidos por autenticación, roles y políticas RLS."
-                  : "Los datos se conservan en localStorage. Configura las variables para trabajar en la nube."}
+                Los datos están protegidos por autenticación, roles y políticas
+                RLS.
               </p>
             </div>
-            <span className="connection-status">
-              {workspace.mode === "supabase" ? "En línea" : "Local"}
-            </span>
+            <span className="connection-status">En línea</span>
           </div>
-          {workspace.mode === "demo" ? (
-            <div className="connection-instructions">
-              <strong>Para conectar Supabase</strong>
-              <ol>
-                <li>Ejecuta la migración incluida en la carpeta supabase.</li>
-                <li>
-                  Copia la URL y la clave pública en <code>.env.local</code>.
-                </li>
-                <li>Reinicia la aplicación y crea tu primera cuenta.</li>
-              </ol>
-              <button
-                type="button"
-                className="button button-danger"
-                onClick={() => {
-                  const confirmed = window.confirm(
-                    "¿Restaurar los datos de demostración? Se perderán los cambios guardados en este navegador.",
-                  );
-                  if (confirmed) resetDemo();
-                }}
-              >
-                Restaurar demostración
-              </button>
-            </div>
-          ) : null}
         </section>
 
         <div className="settings-summary">

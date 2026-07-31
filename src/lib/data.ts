@@ -3,8 +3,6 @@ import "server-only";
 import { cache } from "react";
 
 import { requireViewer } from "@/lib/auth";
-import { cloneWorkspace } from "@/lib/inventory";
-import { demoWorkspace } from "@/lib/demo-data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
@@ -117,14 +115,13 @@ function resultError(
 }
 
 export async function loadWorkspaceData(): Promise<WorkspaceData> {
-  const viewer = await requireViewer();
-
   if (!isSupabaseConfigured()) {
-    return {
-      ...cloneWorkspace(demoWorkspace),
-      viewer,
-    };
+    throw new Error(
+      "Supabase no está configurado. Agrega las variables de entorno antes de usar el inventario.",
+    );
   }
+
+  const viewer = await requireViewer();
 
   const supabase = await createSupabaseServerClient();
   const membershipResult = await supabase
@@ -333,7 +330,6 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
   }));
 
   return {
-    mode: "supabase",
     viewer: {
       ...viewer,
       role: membership.role,

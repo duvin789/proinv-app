@@ -2,7 +2,7 @@
 
 Sistema de inventario para pequeñas y medianas empresas. El usuario registra productos y movimientos; PROInv calcula automáticamente existencias, costo promedio, valorización, margen, utilidad, alertas y reportes.
 
-Está construido con Next.js 16, React 19, Supabase y TypeScript. Se puede ejecutar sin credenciales en modo demostración y desplegar directamente en Vercel.
+Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el único origen de datos y el proyecto puede desplegarse directamente en Vercel.
 
 ## Funciones incluidas
 
@@ -48,7 +48,7 @@ Requisitos:
 
 - Node.js 20.9 o superior.
 - npm.
-- Un proyecto de Supabase para usar datos reales. Es opcional para probar la demo.
+- Un proyecto de Supabase configurado.
 
 Instala y ejecuta:
 
@@ -57,7 +57,9 @@ npm install
 npm run dev
 ```
 
-Abre `http://localhost:3000`. Si no hay variables de Supabase, PROInv inicia en modo demostración y conserva los cambios en `localStorage`.
+Antes de iniciar, crea `.env.local` a partir de `.env.example` y completa las variables públicas de Supabase. Después abre `http://localhost:3000` e inicia sesión o crea una cuenta.
+
+PROInv no incluye almacenamiento local ni datos simulados: productos, movimientos, configuraciones y cálculos se guardan siempre en Supabase.
 
 ## Configurar Supabase
 
@@ -127,9 +129,9 @@ No se requiere `vercel.json`. Next.js y las rutas del servidor se detectan autom
 ```text
 src/app/                  Rutas, acciones del servidor y autenticación
 src/components/           Panel, productos, movimientos, reportes y ajustes
-src/lib/                  Cálculos, tipos, datos demo y clientes Supabase
+src/lib/                  Cálculos, tipos, acceso a datos y clientes Supabase
 supabase/migrations/      Esquema, RLS y funciones transaccionales
-proxy.ts                  Renovación segura de sesión en Next.js 16
+src/proxy.ts              Renovación segura de sesión en Next.js 16
 ```
 
 ## Verificación
