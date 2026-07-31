@@ -14,12 +14,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "PROInv | Inventario automático",
-    template: "%s | PROInv",
+    default: "Almacén LuisGB | Gestión de inventario",
+    template: "%s | Almacén LuisGB",
   },
   description:
     "Sistema de inventario con cálculos automáticos, trazabilidad y reportes.",
-  applicationName: "PROInv",
+  applicationName: "Almacén LuisGB",
   icons: {
     icon: "/proinv-icon.svg",
   },

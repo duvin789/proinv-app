@@ -1,6 +1,6 @@
-# PROInv
+# Almacén LuisGB
 
-Sistema de inventario para pequeñas y medianas empresas. El usuario registra productos y movimientos; PROInv calcula automáticamente existencias, costo promedio, valorización, margen, utilidad, alertas y reportes.
+Sistema de inventario para pequeñas y medianas empresas. El usuario registra productos y movimientos; Almacén LuisGB calcula automáticamente existencias, costo promedio, valorización, margen, utilidad, alertas y reportes.
 
 Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el único origen de datos y el proyecto puede desplegarse directamente en Vercel.
 
@@ -22,7 +22,7 @@ Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el
 
 ## Cálculos automáticos
 
-PROInv usa estas reglas:
+Almacén LuisGB usa estas reglas:
 
 ```text
 Nuevo stock = stock anterior + entradas - salidas
@@ -59,7 +59,7 @@ npm run dev
 
 Antes de iniciar, crea `.env.local` a partir de `.env.example` y completa las variables públicas de Supabase. Después abre `http://localhost:3000` e inicia sesión o crea una cuenta.
 
-PROInv no incluye almacenamiento local ni datos simulados: productos, movimientos, configuraciones y cálculos se guardan siempre en Supabase.
+Almacén LuisGB no incluye almacenamiento local ni datos simulados: productos, movimientos, configuraciones y cálculos se guardan siempre en Supabase.
 
 ## Configurar Supabase
 

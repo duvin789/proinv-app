@@ -118,7 +118,7 @@ export function LoginView({ configured }: { configured: boolean }) {
             <span />
             <span />
           </span>
-          <strong>PROInv</strong>
+          <strong>Almacén LuisGB</strong>
         </Link>
         <div className="login-story-copy">
           <span className="login-eyebrow">Inventario sin fórmulas manuales</span>
@@ -172,7 +172,7 @@ export function LoginView({ configured }: { configured: boolean }) {
           <div className="login-form-heading">
             <span className="login-mobile-brand">
               <PackageIcon size={22} weight="duotone" />
-              PROInv
+              Almacén LuisGB
             </span>
             <h2>{mode === "login" ? "Bienvenido" : "Crea tu espacio"}</h2>
             <p>

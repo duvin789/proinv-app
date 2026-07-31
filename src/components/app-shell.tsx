@@ -134,8 +134,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span />
             </span>
             <span>
-              <strong>PROInv</strong>
-              <small>Control de inventario</small>
+              <strong>Almacén LuisGB</strong>
+              <small>Gestión de inventario</small>
             </span>
           </Link>
           <button

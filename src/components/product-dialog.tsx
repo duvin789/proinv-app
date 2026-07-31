@@ -196,7 +196,7 @@ export function ProductDialog() {
       description={
         editingProduct
           ? "Actualiza los datos comerciales. El stock se modifica con movimientos."
-          : "Completa lo esencial. PROInv hará los cálculos por ti."
+          : "Completa lo esencial. Almacén LuisGB hará los cálculos por ti."
       }
       size="lg"
     >
