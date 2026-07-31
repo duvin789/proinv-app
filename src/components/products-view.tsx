@@ -188,9 +188,9 @@ export function ProductsView() {
     }
 
     const confirmation = window.prompt(
-      `Esta acción eliminará definitivamente “${product.name}”. Escribe el nombre exacto del producto para confirmar.`,
+      `Esta acción eliminará definitivamente “${product.name}”. Escribe ELIMINAR para confirmar.`,
     );
-    if (confirmation?.trim() !== product.name.trim()) return;
+    if (confirmation?.trim().toLocaleUpperCase("es") !== "ELIMINAR") return;
 
     setDeletingProductId(product.id);
     try {
