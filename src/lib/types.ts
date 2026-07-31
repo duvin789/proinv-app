@@ -1,0 +1,177 @@
+export type WorkspaceMode = "demo" | "supabase";
+
+export type MemberRole = "owner" | "admin" | "operator" | "viewer";
+
+export type MovementType =
+  | "initial"
+  | "purchase"
+  | "sale"
+  | "adjustment_in"
+  | "adjustment_out"
+  | "return_in"
+  | "return_out"
+  | "transfer_in"
+  | "transfer_out";
+
+export interface Viewer {
+  id: string;
+  email: string;
+  fullName: string;
+  role: MemberRole;
+  initials: string;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  taxId: string | null;
+  currency: string;
+  taxRate: number;
+  locale: string;
+  createdAt: string;
+}
+
+export interface Category {
+  id: string;
+  organizationId: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface Supplier {
+  id: string;
+  organizationId: string;
+  name: string;
+  contactName: string | null;
+  email: string | null;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface Warehouse {
+  id: string;
+  organizationId: string;
+  name: string;
+  location: string | null;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface Product {
+  id: string;
+  organizationId: string;
+  categoryId: string | null;
+  supplierId: string | null;
+  sku: string;
+  barcode: string | null;
+  name: string;
+  description: string | null;
+  unit: string;
+  purchasePrice: number;
+  salePrice: number;
+  minStock: number;
+  currentStock: number;
+  averageCost: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryMovement {
+  id: string;
+  organizationId: string;
+  productId: string;
+  warehouseId: string;
+  type: MovementType;
+  quantity: number;
+  stockBefore: number;
+  stockAfter: number;
+  unitCost: number;
+  saleUnitPrice: number | null;
+  totalCost: number;
+  revenue: number;
+  grossProfit: number;
+  note: string | null;
+  reference: string | null;
+  occurredAt: string;
+  createdBy: string | null;
+}
+
+export interface WorkspaceData {
+  mode: WorkspaceMode;
+  viewer: Viewer;
+  organization: Organization;
+  categories: Category[];
+  suppliers: Supplier[];
+  warehouses: Warehouse[];
+  products: Product[];
+  movements: InventoryMovement[];
+}
+
+export interface ProductInput {
+  name: string;
+  sku?: string;
+  barcode?: string;
+  description?: string;
+  categoryId?: string;
+  supplierId?: string;
+  warehouseId: string;
+  unit: string;
+  purchasePrice: number;
+  salePrice: number;
+  initialStock: number;
+  minStock: number;
+}
+
+export interface ProductUpdateInput {
+  id: string;
+  name: string;
+  sku: string;
+  barcode?: string;
+  description?: string;
+  categoryId?: string;
+  supplierId?: string;
+  unit: string;
+  purchasePrice: number;
+  salePrice: number;
+  minStock: number;
+}
+
+export interface MovementInput {
+  productId: string;
+  warehouseId: string;
+  type: Exclude<MovementType, "initial" | "transfer_in" | "transfer_out">;
+  quantity: number;
+  unitCost?: number;
+  saleUnitPrice?: number;
+  note?: string;
+  reference?: string;
+}
+
+export interface OrganizationInput {
+  name: string;
+  taxId?: string;
+  currency: string;
+  taxRate: number;
+  locale: string;
+}
+
+export interface CategoryInput {
+  name: string;
+  color: string;
+}
+
+export interface SupplierInput {
+  name: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface ActionResult<T> {
+  ok: boolean;
+  data?: T;
+  message: string;
+  fieldErrors?: Record<string, string[]>;
+}

@@ -1,36 +1,144 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PROInv
 
-## Getting Started
+Sistema de inventario para pequeñas y medianas empresas. El usuario registra productos y movimientos; PROInv calcula automáticamente existencias, costo promedio, valorización, margen, utilidad, alertas y reportes.
 
-First, run the development server:
+Está construido con Next.js 16, React 19, Supabase y TypeScript. Se puede ejecutar sin credenciales en modo demostración y desplegar directamente en Vercel.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Funciones incluidas
+
+- Panel con valor del inventario, unidades, utilidad proyectada y alertas.
+- Catálogo de productos con búsqueda, filtros, estados y exportación CSV.
+- SKU automático cuando el usuario no ingresa uno.
+- Entradas, ventas, ajustes y devoluciones con historial completo.
+- Prevención de stock negativo dentro de una transacción de base de datos.
+- Costo promedio ponderado recalculado con cada entrada.
+- Costo de venta y utilidad bruta calculados con cada salida por venta.
+- Alertas por stock mínimo y sugerencias de reposición.
+- Reportes de valorización, rentabilidad, ventas e impuesto estimado.
+- Categorías, proveedores, empresa, moneda, impuestos y almacenes.
+- Modo claro y oscuro, diseño adaptable a escritorio, tableta y móvil.
+- Inicio de sesión, roles y aislamiento por empresa mediante Supabase Auth y RLS.
+- Exportaciones CSV compatibles con Excel, sin convertir la interfaz en una hoja de cálculo.
+
+## Cálculos automáticos
+
+PROInv usa estas reglas:
+
+```text
+Nuevo stock = stock anterior + entradas - salidas
+
+Costo promedio =
+  (valor anterior + cantidad comprada x costo de entrada)
+  / nuevo stock
+
+Valor del inventario = stock actual x costo promedio
+
+Utilidad por venta = ingreso de la venta - costo de las unidades vendidas
+
+Margen bruto = (precio de venta - costo promedio) / precio de venta x 100
+
+Reposición sugerida = máximo(stock mínimo x 2 - stock actual, 0)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+En Supabase, los cambios de stock y sus cálculos se ejecutan dentro de funciones transaccionales con bloqueo de filas. Dos operaciones simultáneas no pueden gastar las mismas unidades.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Ejecutar localmente
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Requisitos:
 
-## Learn More
+- Node.js 20.9 o superior.
+- npm.
+- Un proyecto de Supabase para usar datos reales. Es opcional para probar la demo.
 
-To learn more about Next.js, take a look at the following resources:
+Instala y ejecuta:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Abre `http://localhost:3000`. Si no hay variables de Supabase, PROInv inicia en modo demostración y conserva los cambios en `localStorage`.
 
-## Deploy on Vercel
+## Configurar Supabase
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Crea un proyecto en Supabase.
+2. Abre el editor SQL del proyecto.
+3. Copia y ejecuta, una sola vez, el archivo:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   `supabase/migrations/202607300001_initial_inventory.sql`
+
+4. En Supabase, copia la URL del proyecto y su clave pública o publishable key.
+5. Duplica `.env.example` como `.env.local` y completa:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://TU-PROYECTO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REEMPLAZAR
+```
+
+6. En Supabase Authentication, agrega estas URL permitidas:
+
+```text
+http://localhost:3000/auth/callback
+https://TU-DOMINIO.vercel.app/auth/callback
+```
+
+Al registrarse una persona, la base de datos crea automáticamente:
+
+- su perfil;
+- una empresa propia;
+- la membresía con rol de propietario;
+- el almacén principal;
+- cuatro categorías iniciales.
+
+No uses `SUPABASE_SERVICE_ROLE_KEY` en el navegador ni en variables con prefijo `NEXT_PUBLIC_`. Esta aplicación no necesita esa clave.
+
+## Roles y seguridad
+
+La migración habilita Row Level Security en todas las tablas.
+
+| Rol | Consultar | Operar stock | Configurar empresa |
+| --- | --- | --- | --- |
+| Propietario | Sí | Sí | Sí |
+| Administrador | Sí | Sí | Sí |
+| Operador | Sí | Sí | No |
+| Consulta | Sí | No | No |
+
+Las funciones sensibles validan nuevamente el usuario, la empresa, el rol, el producto y el almacén. Las tablas de saldos y movimientos no admiten escrituras directas desde el cliente.
+
+## Desplegar en Vercel
+
+1. Sube el proyecto a un repositorio Git.
+2. Importa el repositorio en Vercel.
+3. Mantén el framework detectado como Next.js.
+4. Agrega las dos variables de Supabase en Project Settings > Environment Variables.
+5. Despliega.
+6. Copia el dominio final en las URL permitidas de Supabase Authentication.
+
+El comando de producción es:
+
+```bash
+npm run build
+```
+
+No se requiere `vercel.json`. Next.js y las rutas del servidor se detectan automáticamente.
+
+## Estructura principal
+
+```text
+src/app/                  Rutas, acciones del servidor y autenticación
+src/components/           Panel, productos, movimientos, reportes y ajustes
+src/lib/                  Cálculos, tipos, datos demo y clientes Supabase
+supabase/migrations/      Esquema, RLS y funciones transaccionales
+proxy.ts                  Renovación segura de sesión en Next.js 16
+```
+
+## Verificación
+
+Antes de desplegar:
+
+```bash
+npm run lint
+npm run build
+```
+
+Ambos comandos deben terminar sin errores.
