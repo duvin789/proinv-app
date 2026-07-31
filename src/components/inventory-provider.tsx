@@ -15,6 +15,7 @@ import {
   createCategoryAction,
   createProductAction,
   createSupplierAction,
+  deleteCategoryAction,
   recordMovementAction,
   updateOrganizationAction,
   updateProductAction,
@@ -66,6 +67,9 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   createCategory: (
     input: CategoryInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  deleteCategory: (
+    categoryId: string,
   ) => Promise<ActionResult<WorkspaceData>>;
   createSupplier: (
     input: SupplierInput,
@@ -191,6 +195,12 @@ export function InventoryProvider({
     [runRemote],
   );
 
+  const deleteCategory = useCallback(
+    (categoryId: string) =>
+      runRemote(() => deleteCategoryAction(categoryId)),
+    [runRemote],
+  );
+
   const createSupplier = useCallback(
     (input: SupplierInput) =>
       runRemote(() => createSupplierAction(input)),
@@ -219,6 +229,7 @@ export function InventoryProvider({
       recordMovement,
       updateOrganization,
       createCategory,
+      deleteCategory,
       createSupplier,
     }),
     [
@@ -226,6 +237,7 @@ export function InventoryProvider({
       createCategory,
       createProduct,
       createSupplier,
+      deleteCategory,
       isMutating,
       movementDialog,
       productDialog,

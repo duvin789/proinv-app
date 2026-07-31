@@ -74,6 +74,8 @@ const categorySchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
+const categoryIdSchema = z.string().uuid();
+
 const supplierSchema = z.object({
   name: z.string().trim().min(2).max(120),
   contactName: z.string().trim().max(120).optional(),
@@ -303,8 +305,46 @@ export async function createCategoryAction(
       color: parsed.data.color,
     });
 
-    if (error) return dataError(error.message);
+    if (error) {
+      return dataError(
+        error.code === "23505"
+          ? "Ya existe una categoría con ese nombre."
+          : error.message,
+      );
+    }
     return refreshedWorkspace("Categoría creada.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function deleteCategoryAction(
+  categoryId: string,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = categoryIdSchema.safeParse(categoryId);
+  if (!parsed.success) {
+    return dataError("La categoría seleccionada no es válida.");
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("categories")
+      .delete()
+      .eq("id", parsed.data)
+      .select("id")
+      .maybeSingle();
+
+    if (error) return dataError(error.message);
+    if (!data) {
+      return dataError("No se encontró la categoría o no tienes permiso para eliminarla.");
+    }
+    return refreshedWorkspace(
+      "Categoría eliminada. Los productos quedaron sin categoría.",
+    );
   } catch (error) {
     return dataError(readableError(error));
   }

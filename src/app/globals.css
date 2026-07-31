@@ -2270,11 +2270,32 @@ button {
   white-space: nowrap;
 }
 
+.settings-list-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  font-size: 9.5px;
+  text-align: center;
+}
+
 .category-color-large {
   width: 12px;
   height: 28px;
   flex: 0 0 auto;
   border-radius: 4px;
+}
+
+.category-delete-button {
+  width: 31px;
+  height: 31px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
 }
 
 .supplier-avatar {

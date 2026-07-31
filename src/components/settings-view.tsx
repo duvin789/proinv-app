@@ -8,6 +8,7 @@ import {
   PlusIcon,
   StorefrontIcon,
   TagIcon,
+  TrashIcon,
   UsersThreeIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
@@ -31,6 +32,7 @@ export function SettingsView() {
     isMutating,
     updateOrganization,
     createCategory,
+    deleteCategory,
     createSupplier,
   } = useInventory();
   const { organization, categories, suppliers, warehouses, viewer } = workspace;
@@ -48,6 +50,9 @@ export function SettingsView() {
     color: categoryColors[0],
   });
   const [categoryError, setCategoryError] = useState("");
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
+    null,
+  );
   const [supplierForm, setSupplierForm] = useState({
     name: "",
     contactName: "",
@@ -94,6 +99,30 @@ export function SettingsView() {
       });
     } else {
       setCategoryError(result.message);
+    }
+  }
+
+  async function removeCategory(
+    categoryId: string,
+    categoryName: string,
+    productCount: number,
+  ) {
+    const productMessage =
+      productCount > 0
+        ? ` ${productCount} ${productCount === 1 ? "producto quedará" : "productos quedarán"} sin categoría.`
+        : " No se eliminarán productos.";
+    const confirmed = window.confirm(
+      `¿Eliminar la categoría “${categoryName}”?${productMessage}`,
+    );
+    if (!confirmed) return;
+
+    setCategoryError("");
+    setDeletingCategoryId(categoryId);
+    try {
+      const result = await deleteCategory(categoryId);
+      if (!result.ok) setCategoryError(result.message);
+    } finally {
+      setDeletingCategoryId(null);
     }
   }
 
@@ -291,7 +320,11 @@ export function SettingsView() {
             </div>
           </div>
           <div className="settings-list category-settings-list">
-            {categories.map((category) => {
+            {categories.length === 0 ? (
+              <p className="settings-list-empty">
+                Aún no hay categorías. Puedes crear la primera debajo.
+              </p>
+            ) : categories.map((category) => {
               const count = workspace.products.filter(
                 (product) => product.categoryId === category.id,
               ).length;
@@ -308,6 +341,19 @@ export function SettingsView() {
                       {count} {count === 1 ? "producto" : "productos"}
                     </span>
                   </div>
+                  <button
+                    type="button"
+                    className="icon-button danger-icon-button category-delete-button"
+                    onClick={() =>
+                      removeCategory(category.id, category.name, count)
+                    }
+                    disabled={!canManage || isMutating}
+                    aria-label={`Eliminar categoría ${category.name}`}
+                    title="Eliminar categoría"
+                    aria-busy={deletingCategoryId === category.id}
+                  >
+                    <TrashIcon size={16} />
+                  </button>
                 </div>
               );
             })}
