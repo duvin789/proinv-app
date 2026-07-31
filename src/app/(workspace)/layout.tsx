@@ -1,3 +1,5 @@
+import { connection } from "next/server";
+
 import { AppShell } from "@/components/app-shell";
 import { InventoryProvider } from "@/components/inventory-provider";
 import { getWorkspaceData } from "@/lib/data";
@@ -7,6 +9,7 @@ export default async function WorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
+  await connection();
   const workspace = await getWorkspaceData();
 
   return (
