@@ -15,6 +15,7 @@ import {
   createCategoryAction,
   createProductAction,
   createSupplierAction,
+  createWarehouseAction,
   deleteCategoryAction,
   recordMovementAction,
   updateOrganizationAction,
@@ -29,6 +30,7 @@ import type {
   ProductInput,
   ProductUpdateInput,
   SupplierInput,
+  WarehouseInput,
   WorkspaceData,
 } from "@/lib/types";
 
@@ -73,6 +75,9 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   createSupplier: (
     input: SupplierInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  createWarehouse: (
+    input: WarehouseInput,
   ) => Promise<ActionResult<WorkspaceData>>;
 }
 
@@ -207,6 +212,12 @@ export function InventoryProvider({
     [runRemote],
   );
 
+  const createWarehouse = useCallback(
+    (input: WarehouseInput) =>
+      runRemote(() => createWarehouseAction(input)),
+    [runRemote],
+  );
+
   const value = useMemo<InventoryContextValue>(
     () => ({
       workspace,
@@ -231,12 +242,14 @@ export function InventoryProvider({
       createCategory,
       deleteCategory,
       createSupplier,
+      createWarehouse,
     }),
     [
       archiveProduct,
       createCategory,
       createProduct,
       createSupplier,
+      createWarehouse,
       deleteCategory,
       isMutating,
       movementDialog,

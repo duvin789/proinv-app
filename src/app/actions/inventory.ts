@@ -16,6 +16,7 @@ import type {
   ProductInput,
   ProductUpdateInput,
   SupplierInput,
+  WarehouseInput,
   WorkspaceData,
 } from "@/lib/types";
 
@@ -78,6 +79,11 @@ const supplierSchema = z.object({
   contactName: z.string().trim().max(120).optional(),
   email: z.union([z.email(), z.literal("")]).optional(),
   phone: z.string().trim().max(40).optional(),
+});
+
+const warehouseSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  location: z.string().trim().max(200).optional(),
 });
 
 function validationError<T>(error: z.ZodError): ActionResult<T> {
@@ -438,6 +444,45 @@ export async function createSupplierAction(
 
     if (error) return dataError(error.message);
     return refreshedWorkspace("Proveedor creado.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function createWarehouseAction(
+  input: WarehouseInput,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = warehouseSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const workspace = await loadWorkspaceData();
+    const normalizedName = parsed.data.name.toLocaleLowerCase("es");
+    const duplicate = workspace.warehouses.some(
+      (warehouse) =>
+        warehouse.name.trim().toLocaleLowerCase("es") === normalizedName,
+    );
+    if (duplicate) {
+      return dataError("Ya existe un almacén con ese nombre.");
+    }
+
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("warehouses")
+      .insert({
+        organization_id: workspace.organization.id,
+        name: parsed.data.name,
+        location: parsed.data.location || null,
+        is_default: workspace.warehouses.length === 0,
+      })
+      .select("id")
+      .single();
+
+    if (error) return dataError(error.message);
+    return refreshedWorkspace("Almacén creado y disponible para el inventario.");
   } catch (error) {
     return dataError(readableError(error));
   }

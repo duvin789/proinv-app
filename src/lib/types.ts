@@ -160,6 +160,11 @@ export interface SupplierInput {
   phone?: string;
 }
 
+export interface WarehouseInput {
+  name: string;
+  location?: string;
+}
+
 export interface ActionResult<T> {
   ok: boolean;
   data?: T;

@@ -2327,7 +2327,8 @@ button {
   cursor: pointer;
 }
 
-.supplier-create-form {
+.supplier-create-form,
+.warehouse-create-form {
   display: grid;
   gap: 12px;
   margin: 16px 0 0 50px;
@@ -3269,6 +3270,7 @@ button {
   .settings-list,
   .inline-create-form,
   .supplier-create-form,
+  .warehouse-create-form,
   .warehouse-list,
   .settings-helper,
   .connection-card {

@@ -34,6 +34,7 @@ export function SettingsView() {
     createCategory,
     deleteCategory,
     createSupplier,
+    createWarehouse,
   } = useInventory();
   const { organization, categories, suppliers, warehouses, viewer } = workspace;
   const canManage = viewer.role === "owner" || viewer.role === "admin";
@@ -60,6 +61,11 @@ export function SettingsView() {
     phone: "",
   });
   const [supplierError, setSupplierError] = useState("");
+  const [warehouseForm, setWarehouseForm] = useState({
+    name: "",
+    location: "",
+  });
+  const [warehouseError, setWarehouseError] = useState("");
 
   async function saveCompany(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,6 +154,25 @@ export function SettingsView() {
       });
     } else {
       setSupplierError(result.message);
+    }
+  }
+
+  async function addWarehouse(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setWarehouseError("");
+    if (!warehouseForm.name.trim()) {
+      setWarehouseError("Escribe el nombre del almacén.");
+      return;
+    }
+
+    const result = await createWarehouse({
+      name: warehouseForm.name,
+      location: warehouseForm.location || undefined,
+    });
+    if (result.ok) {
+      setWarehouseForm({ name: "", location: "" });
+    } else {
+      setWarehouseError(result.message);
     }
   }
 
@@ -543,6 +568,56 @@ export function SettingsView() {
               </div>
             ))}
           </div>
+          <form className="warehouse-create-form" onSubmit={addWarehouse}>
+            <div className="form-grid form-grid-2">
+              <label className="field">
+                <span>Nombre del almacén</span>
+                <input
+                  value={warehouseForm.name}
+                  onChange={(event) =>
+                    setWarehouseForm((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="Ej. Almacén de materia prima"
+                  disabled={!canManage}
+                  maxLength={120}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>Ubicación</span>
+                <input
+                  value={warehouseForm.location}
+                  onChange={(event) =>
+                    setWarehouseForm((current) => ({
+                      ...current,
+                      location: event.target.value,
+                    }))
+                  }
+                  placeholder="Ej. Planta 1, zona de madera"
+                  disabled={!canManage}
+                  maxLength={200}
+                />
+              </label>
+            </div>
+            {warehouseError ? (
+              <p className="inline-error" role="alert">
+                {warehouseError}
+              </p>
+            ) : null}
+            <div className="settings-form-footer">
+              <button
+                type="submit"
+                className="button button-secondary"
+                disabled={!canManage || isMutating}
+              >
+                <PlusIcon size={18} weight="bold" />
+                Agregar almacén
+              </button>
+            </div>
+          </form>
           <p className="settings-helper">
             Las existencias se controlan por almacén y cada movimiento conserva
             la ubicación donde fue registrado.
