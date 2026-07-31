@@ -1,18 +1,21 @@
 "use client";
 
 import {
+  ArrowsDownUpIcon,
   BuildingsIcon,
   CheckCircleIcon,
   DatabaseIcon,
   MapPinIcon,
+  PencilSimpleIcon,
   PlusIcon,
   StorefrontIcon,
   TagIcon,
   TrashIcon,
   UsersThreeIcon,
   WarningIcon,
+  XIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useInventory } from "@/components/inventory-provider";
 import { formatNumber } from "@/lib/format";
@@ -33,11 +36,29 @@ export function SettingsView() {
     updateOrganization,
     createCategory,
     deleteCategory,
+    createMovementReason,
+    updateMovementReason,
+    deleteMovementReason,
     createSupplier,
     createWarehouse,
   } = useInventory();
-  const { organization, categories, suppliers, warehouses, viewer } = workspace;
+  const {
+    organization,
+    categories,
+    movementReasons,
+    suppliers,
+    warehouses,
+    viewer,
+  } = workspace;
   const canManage = viewer.role === "owner" || viewer.role === "admin";
+  const reasonUsage = useMemo(() => {
+    const usage = new Map<string, number>();
+    for (const movement of workspace.movements) {
+      const key = movement.reason?.trim().toLocaleLowerCase("es");
+      if (key) usage.set(key, (usage.get(key) || 0) + 1);
+    }
+    return usage;
+  }, [workspace.movements]);
   const [companyForm, setCompanyForm] = useState({
     name: organization.name,
     taxId: organization.taxId || "",
@@ -54,6 +75,11 @@ export function SettingsView() {
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
     null,
   );
+  const [reasonName, setReasonName] = useState("");
+  const [reasonError, setReasonError] = useState("");
+  const [editingReasonId, setEditingReasonId] = useState<string | null>(null);
+  const [editingReasonName, setEditingReasonName] = useState("");
+  const [deletingReasonId, setDeletingReasonId] = useState<string | null>(null);
   const [supplierForm, setSupplierForm] = useState({
     name: "",
     contactName: "",
@@ -132,6 +158,68 @@ export function SettingsView() {
     }
   }
 
+  async function addReason(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setReasonError("");
+    if (reasonName.trim().length < 2) {
+      setReasonError("Escribe un motivo de al menos 2 caracteres.");
+      return;
+    }
+
+    const result = await createMovementReason({ name: reasonName });
+    if (result.ok) setReasonName("");
+    else setReasonError(result.message);
+  }
+
+  function startEditingReason(reasonId: string, name: string) {
+    setReasonError("");
+    setEditingReasonId(reasonId);
+    setEditingReasonName(name);
+  }
+
+  function cancelEditingReason() {
+    setEditingReasonId(null);
+    setEditingReasonName("");
+  }
+
+  async function saveReason(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingReasonId) return;
+    setReasonError("");
+    if (editingReasonName.trim().length < 2) {
+      setReasonError("El motivo debe tener al menos 2 caracteres.");
+      return;
+    }
+
+    const result = await updateMovementReason({
+      id: editingReasonId,
+      name: editingReasonName,
+    });
+    if (result.ok) cancelEditingReason();
+    else setReasonError(result.message);
+  }
+
+  async function removeReason(reasonId: string, name: string) {
+    const usageCount =
+      reasonUsage.get(name.trim().toLocaleLowerCase("es")) || 0;
+    const usageMessage = usageCount
+      ? " Los movimientos históricos conservarán este texto."
+      : "";
+    const confirmed = window.confirm(
+      `¿Eliminar el motivo “${name}” de las opciones?${usageMessage}`,
+    );
+    if (!confirmed) return;
+
+    setReasonError("");
+    setDeletingReasonId(reasonId);
+    try {
+      const result = await deleteMovementReason(reasonId);
+      if (!result.ok) setReasonError(result.message);
+    } finally {
+      setDeletingReasonId(null);
+    }
+  }
+
   async function addSupplier(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSupplierError("");
@@ -186,6 +274,10 @@ export function SettingsView() {
         <a href="#categorias">
           <TagIcon size={18} />
           Categorías
+        </a>
+        <a href="#motivos">
+          <ArrowsDownUpIcon size={18} />
+          Motivos
         </a>
         <a href="#proveedores">
           <UsersThreeIcon size={18} />
@@ -430,6 +522,155 @@ export function SettingsView() {
           ) : null}
         </section>
 
+        <section id="motivos" className="panel settings-section">
+          <div className="settings-section-heading">
+            <div className="settings-section-icon">
+              <ArrowsDownUpIcon size={22} weight="duotone" />
+            </div>
+            <div>
+              <h2>Motivos de movimiento</h2>
+              <p>
+                Define las opciones que aparecen al registrar o editar una
+                entrada, salida, devolución o ajuste.
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-list reason-settings-list">
+            {movementReasons.length === 0 ? (
+              <p className="settings-list-empty">
+                Aún no hay motivos. Agrega la primera opción debajo.
+              </p>
+            ) : (
+              movementReasons.map((reason) => {
+                const usageCount =
+                  reasonUsage.get(
+                    reason.name.trim().toLocaleLowerCase("es"),
+                  ) || 0;
+                const isEditingReason = editingReasonId === reason.id;
+
+                return (
+                  <div key={reason.id} className="reason-settings-row">
+                    <span className="reason-settings-icon" aria-hidden="true">
+                      <ArrowsDownUpIcon size={18} weight="duotone" />
+                    </span>
+                    {isEditingReason ? (
+                      <form
+                        className="reason-edit-form"
+                        onSubmit={saveReason}
+                      >
+                        <label className="sr-only" htmlFor={`reason-${reason.id}`}>
+                          Nombre del motivo
+                        </label>
+                        <input
+                          id={`reason-${reason.id}`}
+                          value={editingReasonName}
+                          onChange={(event) =>
+                            setEditingReasonName(event.target.value)
+                          }
+                          maxLength={80}
+                          disabled={isMutating}
+                          autoFocus
+                          required
+                        />
+                        <button
+                          type="submit"
+                          className="icon-button"
+                          disabled={isMutating}
+                          aria-label={`Guardar motivo ${reason.name}`}
+                          title="Guardar nombre"
+                        >
+                          <CheckCircleIcon size={18} weight="bold" />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={cancelEditingReason}
+                          disabled={isMutating}
+                          aria-label="Cancelar edición"
+                          title="Cancelar"
+                        >
+                          <XIcon size={18} weight="bold" />
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <div>
+                          <strong>{reason.name}</strong>
+                          <span>
+                            {usageCount}{" "}
+                            {usageCount === 1
+                              ? "uso en el historial visible"
+                              : "usos en el historial visible"}
+                          </span>
+                        </div>
+                        <div className="reason-settings-actions">
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() =>
+                              startEditingReason(reason.id, reason.name)
+                            }
+                            disabled={!canManage || isMutating}
+                            aria-label={`Editar motivo ${reason.name}`}
+                            title="Editar motivo"
+                          >
+                            <PencilSimpleIcon size={17} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button danger-icon-button"
+                            onClick={() =>
+                              removeReason(reason.id, reason.name)
+                            }
+                            disabled={!canManage || isMutating}
+                            aria-label={`Eliminar motivo ${reason.name}`}
+                            title="Eliminar motivo"
+                            aria-busy={deletingReasonId === reason.id}
+                          >
+                            <TrashIcon size={17} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <form className="inline-create-form reason-create-form" onSubmit={addReason}>
+            <label className="field">
+              <span>Nuevo motivo</span>
+              <input
+                value={reasonName}
+                onChange={(event) => setReasonName(event.target.value)}
+                placeholder="Ej. Consumo para orden de producción"
+                disabled={!canManage}
+                maxLength={80}
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              className="button button-secondary"
+              disabled={!canManage || isMutating}
+            >
+              <PlusIcon size={18} weight="bold" />
+              Agregar motivo
+            </button>
+          </form>
+          {reasonError ? (
+            <p className="inline-error" role="alert">
+              {reasonError}
+            </p>
+          ) : null}
+          <p className="settings-helper">
+            Al renombrar un motivo también se actualiza su texto en el
+            historial. Al eliminarlo, solo desaparece de las opciones nuevas.
+          </p>
+        </section>
+
         <section id="proveedores" className="panel settings-section">
           <div className="settings-section-heading">
             <div className="settings-section-icon">
@@ -654,6 +895,7 @@ export function SettingsView() {
             {formatNumber(workspace.products.length)} productos
           </span>
           <span>{formatNumber(categories.length)} categorías</span>
+          <span>{formatNumber(movementReasons.length)} motivos</span>
           <span>{formatNumber(suppliers.length)} proveedores</span>
           <span>{formatNumber(warehouses.length)} almacenes</span>
         </div>

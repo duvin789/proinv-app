@@ -9,6 +9,7 @@ import type {
   Category,
   InventoryMovement,
   MemberRole,
+  MovementReason,
   MovementType,
   Organization,
   Product,
@@ -37,6 +38,13 @@ interface DbCategory {
   organization_id: string;
   name: string;
   color: string;
+  created_at: string;
+}
+
+interface DbMovementReason {
+  id: string;
+  organization_id: string;
+  name: string;
   created_at: string;
 }
 
@@ -147,6 +155,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
   const [
     organizationResult,
     categoriesResult,
+    movementReasonsResult,
     suppliersResult,
     warehousesResult,
     productsResult,
@@ -161,6 +170,11 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     supabase
       .from("categories")
       .select("id, organization_id, name, color, created_at")
+      .eq("organization_id", organizationId)
+      .order("name"),
+    supabase
+      .from("movement_reasons")
+      .select("id, organization_id, name, created_at")
       .eq("organization_id", organizationId)
       .order("name"),
     supabase
@@ -202,6 +216,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
   const queryError = resultError([
     organizationResult,
     categoriesResult,
+    movementReasonsResult,
     suppliersResult,
     warehousesResult,
     productsResult,
@@ -215,6 +230,8 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
 
   const dbOrganization = organizationResult.data as DbOrganization;
   const dbCategories = (categoriesResult.data ?? []) as unknown as DbCategory[];
+  const dbMovementReasons = (movementReasonsResult.data ??
+    []) as unknown as DbMovementReason[];
   const dbSuppliers = (suppliersResult.data ?? []) as unknown as DbSupplier[];
   const dbWarehouses = (warehousesResult.data ?? []) as unknown as DbWarehouse[];
   const dbProducts = (productsResult.data ?? []) as unknown as DbProduct[];
@@ -253,6 +270,13 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     name: category.name,
     color: category.color,
     createdAt: category.created_at,
+  }));
+
+  const movementReasons: MovementReason[] = dbMovementReasons.map((reason) => ({
+    id: reason.id,
+    organizationId: reason.organization_id,
+    name: reason.name,
+    createdAt: reason.created_at,
   }));
 
   const suppliers: Supplier[] = dbSuppliers.map((supplier) => ({
@@ -332,6 +356,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     },
     organization,
     categories,
+    movementReasons,
     suppliers,
     warehouses,
     products,

@@ -288,7 +288,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <ProductDialog key={productDialog.product?.id || "new-product"} />
       ) : null}
       {movementDialog.open ? (
-        <MovementDialog key={movementDialog.product?.id || "new-movement"} />
+        <MovementDialog
+          key={
+            movementDialog.movement?.id ||
+            movementDialog.product?.id ||
+            "new-movement"
+          }
+        />
       ) : null}
 
       {toast ? (

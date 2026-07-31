@@ -37,6 +37,13 @@ export interface Category {
   createdAt: string;
 }
 
+export interface MovementReason {
+  id: string;
+  organizationId: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface Supplier {
   id: string;
   organizationId: string;
@@ -98,6 +105,7 @@ export interface WorkspaceData {
   viewer: Viewer;
   organization: Organization;
   categories: Category[];
+  movementReasons: MovementReason[];
   suppliers: Supplier[];
   warehouses: Warehouse[];
   products: Product[];
@@ -140,6 +148,16 @@ export interface MovementInput {
   reason?: string;
 }
 
+export interface MovementUpdateInput {
+  id: string;
+  type: Exclude<MovementType, "transfer_in" | "transfer_out">;
+  quantity: number;
+  unitCost?: number;
+  saleUnitPrice?: number;
+  note?: string;
+  reason?: string;
+}
+
 export interface OrganizationInput {
   name: string;
   taxId?: string;
@@ -151,6 +169,14 @@ export interface OrganizationInput {
 export interface CategoryInput {
   name: string;
   color: string;
+}
+
+export interface MovementReasonInput {
+  name: string;
+}
+
+export interface MovementReasonUpdateInput extends MovementReasonInput {
+  id: string;
 }
 
 export interface SupplierInput {

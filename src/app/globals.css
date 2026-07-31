@@ -1754,6 +1754,108 @@ button {
   background: transparent;
 }
 
+.movement-row-actions {
+  min-width: 101px;
+}
+
+.movement-detail-body {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.movement-detail-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 14px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.movement-detail-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.movement-detail-heading > div strong {
+  overflow: hidden;
+  color: var(--ink-strong);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movement-detail-heading > div span {
+  color: var(--muted);
+  font-size: 8.5px;
+}
+
+.movement-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.movement-detail-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.movement-detail-grid dt,
+.movement-detail-note > span {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 560;
+}
+
+.movement-detail-grid dd {
+  margin: 0;
+  color: var(--ink-strong);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 610;
+}
+
+.movement-detail-profit {
+  color: var(--accent) !important;
+}
+
+.movement-detail-note {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  background: var(--surface-soft);
+  border-radius: 10px;
+}
+
+.movement-detail-note p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.movement-protected-note {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border: 1px solid color-mix(in srgb, var(--warning) 22%, var(--line));
+  border-radius: 9px;
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+
 .pagination {
   display: flex;
   min-height: 60px;
@@ -2296,6 +2398,50 @@ button {
   margin-left: auto;
   border-color: transparent;
   background: transparent;
+}
+
+.reason-settings-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--accent) !important;
+  background: var(--accent-soft);
+  border-radius: 9px;
+}
+
+.reason-settings-actions {
+  display: flex !important;
+  flex: 0 0 auto;
+  grid-auto-flow: column;
+  gap: 2px !important;
+  margin-left: auto;
+}
+
+.reason-settings-actions .icon-button,
+.reason-edit-form .icon-button {
+  width: 31px;
+  height: 31px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.reason-edit-form {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 3px;
+}
+
+.reason-edit-form input {
+  min-width: 0;
+  flex: 1;
+}
+
+.reason-create-form {
+  grid-template-columns: 1fr auto;
 }
 
 .supplier-avatar {
@@ -3290,6 +3436,15 @@ button {
     grid-column: 1 / -1;
   }
 
+  .reason-create-form {
+    grid-template-columns: 1fr;
+  }
+
+  .reason-create-form .field,
+  .reason-create-form .button {
+    grid-column: 1 / -1;
+  }
+
   .connection-card {
     grid-template-columns: auto 1fr;
     padding: 13px;
@@ -3313,6 +3468,11 @@ button {
   .modal-header,
   .form-section,
   .modal-footer {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  .movement-detail-body {
     padding-right: 15px;
     padding-left: 15px;
   }
@@ -3354,6 +3514,19 @@ button {
 }
 
 @media (max-width: 440px) {
+  .movement-detail-heading {
+    grid-template-columns: auto 1fr;
+  }
+
+  .movement-detail-heading .movement-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .movement-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
   .topbar-title > div {
     max-width: 145px;
   }

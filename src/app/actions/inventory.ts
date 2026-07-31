@@ -12,6 +12,9 @@ import type {
   CategoryInput,
   MemberRole,
   MovementInput,
+  MovementReasonInput,
+  MovementReasonUpdateInput,
+  MovementUpdateInput,
   OrganizationInput,
   ProductInput,
   ProductUpdateInput,
@@ -59,6 +62,21 @@ const movementSchema = z.object({
   reason: z.string().trim().max(80).optional(),
 });
 
+const movementUpdateSchema = movementSchema
+  .omit({ productId: true, warehouseId: true })
+  .extend({
+    id: z.string().uuid(),
+    type: z.enum([
+      "initial",
+      "purchase",
+      "sale",
+      "adjustment_in",
+      "adjustment_out",
+      "return_in",
+      "return_out",
+    ]),
+  });
+
 const organizationSchema = z.object({
   name: z.string().trim().min(2).max(120),
   taxId: z.string().trim().max(30).optional(),
@@ -73,6 +91,14 @@ const categorySchema = z.object({
 });
 
 const categoryIdSchema = z.string().uuid();
+
+const movementReasonSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+});
+
+const movementReasonUpdateSchema = movementReasonSchema.extend({
+  id: z.string().uuid(),
+});
 
 const supplierSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -325,6 +351,57 @@ export async function recordMovementAction(
   }
 }
 
+export async function updateMovementAction(
+  input: MovementUpdateInput,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = movementUpdateSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const value = parsed.data;
+    const { error } = await supabase.rpc("update_inventory_movement", {
+      p_movement_id: value.id,
+      p_movement_type: value.type,
+      p_quantity: value.quantity,
+      p_unit_cost: value.unitCost ?? null,
+      p_sale_unit_price: value.saleUnitPrice ?? null,
+      p_note: value.note || null,
+      p_reference: value.reason || null,
+    });
+
+    if (error) return dataError(error.message);
+    return refreshedWorkspace("Movimiento actualizado y stock recalculado.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function deleteMovementAction(
+  movementId: string,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = z.string().uuid().safeParse(movementId);
+  if (!parsed.success) return dataError("El movimiento seleccionado no es válido.");
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("delete_inventory_movement", {
+      p_movement_id: parsed.data,
+    });
+
+    if (error) return dataError(error.message);
+    return refreshedWorkspace("Movimiento eliminado y stock recalculado.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
 export async function updateOrganizationAction(
   input: OrganizationInput,
 ): Promise<ActionResult<WorkspaceData>> {
@@ -416,6 +493,91 @@ export async function deleteCategoryAction(
     return refreshedWorkspace(
       "Categoría eliminada. Los productos quedaron sin categoría.",
     );
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function createMovementReasonAction(
+  input: MovementReasonInput,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = movementReasonSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const workspace = await loadWorkspaceData();
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.from("movement_reasons").insert({
+      organization_id: workspace.organization.id,
+      name: parsed.data.name,
+    });
+
+    if (error) {
+      return dataError(
+        error.code === "23505"
+          ? "Ya existe un motivo con ese nombre."
+          : error.message,
+      );
+    }
+    return refreshedWorkspace("Motivo agregado.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function updateMovementReasonAction(
+  input: MovementReasonUpdateInput,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = movementReasonUpdateSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("rename_movement_reason", {
+      p_reason_id: parsed.data.id,
+      p_name: parsed.data.name,
+    });
+
+    if (error) {
+      return dataError(
+        error.code === "23505"
+          ? "Ya existe un motivo con ese nombre."
+          : error.message,
+      );
+    }
+    return refreshedWorkspace("Motivo actualizado también en el historial.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function deleteMovementReasonAction(
+  reasonId: string,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = z.string().uuid().safeParse(reasonId);
+  if (!parsed.success) return dataError("El motivo seleccionado no es válido.");
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("movement_reasons")
+      .delete()
+      .eq("id", parsed.data)
+      .select("id")
+      .maybeSingle();
+
+    if (error) return dataError(error.message);
+    if (!data) return dataError("No se encontró el motivo o no tienes permiso.");
+    return refreshedWorkspace("Motivo eliminado. El historial conserva su texto.");
   } catch (error) {
     return dataError(readableError(error));
   }

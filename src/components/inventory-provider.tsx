@@ -13,18 +13,27 @@ import {
 import {
   archiveProductAction,
   createCategoryAction,
+  createMovementReasonAction,
   createProductAction,
   createSupplierAction,
   createWarehouseAction,
   deleteCategoryAction,
+  deleteMovementAction,
+  deleteMovementReasonAction,
   recordMovementAction,
   updateOrganizationAction,
+  updateMovementAction,
+  updateMovementReasonAction,
   updateProductAction,
 } from "@/app/actions/inventory";
 import type {
   ActionResult,
   CategoryInput,
+  InventoryMovement,
   MovementInput,
+  MovementReasonInput,
+  MovementReasonUpdateInput,
+  MovementUpdateInput,
   OrganizationInput,
   Product,
   ProductInput,
@@ -46,10 +55,15 @@ interface InventoryContextValue {
   isMutating: boolean;
   toast: ToastMessage | null;
   productDialog: { open: boolean; product: Product | null };
-  movementDialog: { open: boolean; product: Product | null };
+  movementDialog: {
+    open: boolean;
+    product: Product | null;
+    movement: InventoryMovement | null;
+  };
   openProductDialog: (product?: Product) => void;
   closeProductDialog: () => void;
   openMovementDialog: (product?: Product) => void;
+  openMovementEditDialog: (movement: InventoryMovement) => void;
   closeMovementDialog: () => void;
   dismissToast: () => void;
   createProduct: (
@@ -64,6 +78,12 @@ interface InventoryContextValue {
   recordMovement: (
     input: MovementInput,
   ) => Promise<ActionResult<WorkspaceData>>;
+  updateMovement: (
+    input: MovementUpdateInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  deleteMovement: (
+    movementId: string,
+  ) => Promise<ActionResult<WorkspaceData>>;
   updateOrganization: (
     input: OrganizationInput,
   ) => Promise<ActionResult<WorkspaceData>>;
@@ -72,6 +92,15 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   deleteCategory: (
     categoryId: string,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  createMovementReason: (
+    input: MovementReasonInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  updateMovementReason: (
+    input: MovementReasonUpdateInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  deleteMovementReason: (
+    reasonId: string,
   ) => Promise<ActionResult<WorkspaceData>>;
   createSupplier: (
     input: SupplierInput,
@@ -100,7 +129,8 @@ export function InventoryProvider({
   const [movementDialog, setMovementDialog] = useState<{
     open: boolean;
     product: Product | null;
-  }>({ open: false, product: null });
+    movement: InventoryMovement | null;
+  }>({ open: false, product: null, movement: null });
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback(
@@ -188,6 +218,18 @@ export function InventoryProvider({
     [runRemote],
   );
 
+  const updateMovement = useCallback(
+    (input: MovementUpdateInput) =>
+      runRemote(() => updateMovementAction(input)),
+    [runRemote],
+  );
+
+  const deleteMovement = useCallback(
+    (movementId: string) =>
+      runRemote(() => deleteMovementAction(movementId)),
+    [runRemote],
+  );
+
   const updateOrganization = useCallback(
     (input: OrganizationInput) =>
       runRemote(() => updateOrganizationAction(input)),
@@ -203,6 +245,24 @@ export function InventoryProvider({
   const deleteCategory = useCallback(
     (categoryId: string) =>
       runRemote(() => deleteCategoryAction(categoryId)),
+    [runRemote],
+  );
+
+  const createMovementReason = useCallback(
+    (input: MovementReasonInput) =>
+      runRemote(() => createMovementReasonAction(input)),
+    [runRemote],
+  );
+
+  const updateMovementReason = useCallback(
+    (input: MovementReasonUpdateInput) =>
+      runRemote(() => updateMovementReasonAction(input)),
+    [runRemote],
+  );
+
+  const deleteMovementReason = useCallback(
+    (reasonId: string) =>
+      runRemote(() => deleteMovementReasonAction(reasonId)),
     [runRemote],
   );
 
@@ -230,33 +290,49 @@ export function InventoryProvider({
       closeProductDialog: () =>
         setProductDialog({ open: false, product: null }),
       openMovementDialog: (product) =>
-        setMovementDialog({ open: true, product: product || null }),
+        setMovementDialog({
+          open: true,
+          product: product || null,
+          movement: null,
+        }),
+      openMovementEditDialog: (movement) =>
+        setMovementDialog({ open: true, product: null, movement }),
       closeMovementDialog: () =>
-        setMovementDialog({ open: false, product: null }),
+        setMovementDialog({ open: false, product: null, movement: null }),
       dismissToast: () => setToast(null),
       createProduct,
       updateProduct,
       archiveProduct,
       recordMovement,
+      updateMovement,
+      deleteMovement,
       updateOrganization,
       createCategory,
       deleteCategory,
+      createMovementReason,
+      updateMovementReason,
+      deleteMovementReason,
       createSupplier,
       createWarehouse,
     }),
     [
       archiveProduct,
       createCategory,
+      createMovementReason,
       createProduct,
       createSupplier,
       createWarehouse,
       deleteCategory,
+      deleteMovement,
+      deleteMovementReason,
       isMutating,
       movementDialog,
       productDialog,
       recordMovement,
       toast,
       updateOrganization,
+      updateMovement,
+      updateMovementReason,
       updateProduct,
       workspace,
     ],
