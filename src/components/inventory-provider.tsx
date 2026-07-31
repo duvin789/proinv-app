@@ -20,6 +20,7 @@ import {
   deleteCategoryAction,
   deleteMovementAction,
   deleteMovementReasonAction,
+  deleteProductAction,
   recordMovementAction,
   updateOrganizationAction,
   updateMovementAction,
@@ -73,6 +74,9 @@ interface InventoryContextValue {
     input: ProductUpdateInput,
   ) => Promise<ActionResult<WorkspaceData>>;
   archiveProduct: (
+    productId: string,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  deleteProduct: (
     productId: string,
   ) => Promise<ActionResult<WorkspaceData>>;
   recordMovement: (
@@ -212,6 +216,12 @@ export function InventoryProvider({
     [runRemote],
   );
 
+  const deleteProduct = useCallback(
+    (productId: string) =>
+      runRemote(() => deleteProductAction(productId)),
+    [runRemote],
+  );
+
   const recordMovement = useCallback(
     (input: MovementInput) =>
       runRemote(() => recordMovementAction(input)),
@@ -303,6 +313,7 @@ export function InventoryProvider({
       createProduct,
       updateProduct,
       archiveProduct,
+      deleteProduct,
       recordMovement,
       updateMovement,
       deleteMovement,
@@ -325,6 +336,7 @@ export function InventoryProvider({
       deleteCategory,
       deleteMovement,
       deleteMovementReason,
+      deleteProduct,
       isMutating,
       movementDialog,
       productDialog,

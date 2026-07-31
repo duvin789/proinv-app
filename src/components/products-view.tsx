@@ -10,6 +10,7 @@ import {
   PackageIcon,
   PencilSimpleIcon,
   PlusIcon,
+  TrashIcon,
 } from "@phosphor-icons/react";
 import {
   useDeferredValue,
@@ -45,9 +46,11 @@ const statusLabels = {
 export function ProductsView() {
   const {
     workspace,
+    isMutating,
     openProductDialog,
     openMovementDialog,
     archiveProduct,
+    deleteProduct,
   } = useInventory();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -55,8 +58,14 @@ export function ProductsView() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sort, setSort] = useState<SortOption>("name");
   const [page, setPage] = useState(1);
-  const { products, categories, suppliers, organization } = workspace;
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(
+    null,
+  );
+  const { products, categories, suppliers, movements, organization } =
+    workspace;
   const canOperate = workspace.viewer.role !== "viewer";
+  const canManage =
+    workspace.viewer.role === "owner" || workspace.viewer.role === "admin";
 
   const categoryMap = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
@@ -65,6 +74,10 @@ export function ProductsView() {
   const supplierMap = useMemo(
     () => new Map(suppliers.map((supplier) => [supplier.id, supplier])),
     [suppliers],
+  );
+  const productsWithVisibleHistory = useMemo(
+    () => new Set(movements.map((movement) => movement.productId)),
+    [movements],
   );
 
   const filteredProducts = useMemo(() => {
@@ -158,6 +171,33 @@ export function ProductsView() {
       `¿Archivar "${product.name}"? El historial se conservará y el producto dejará de aparecer en la operación diaria.`,
     );
     if (confirmed) await archiveProduct(product.id);
+  }
+
+  async function handleDelete(product: Product) {
+    if (Math.abs(product.currentStock) >= 0.0005) {
+      window.alert(
+        "No se puede eliminar porque todavía tiene stock. Registra primero la salida correspondiente.",
+      );
+      return;
+    }
+    if (productsWithVisibleHistory.has(product.id)) {
+      window.alert(
+        "No se puede eliminar porque tiene historial de movimientos. Debe permanecer archivado para conservar la trazabilidad.",
+      );
+      return;
+    }
+
+    const confirmation = window.prompt(
+      `Esta acción eliminará definitivamente “${product.name}”. Escribe el nombre exacto del producto para confirmar.`,
+    );
+    if (confirmation?.trim() !== product.name.trim()) return;
+
+    setDeletingProductId(product.id);
+    try {
+      await deleteProduct(product.id);
+    } finally {
+      setDeletingProductId(null);
+    }
   }
 
   return (
@@ -394,8 +434,8 @@ export function ProductsView() {
                               <button
                                 type="button"
                                 className="icon-button"
-                                onClick={() => openMovementDialog(product)}
-                                disabled={!canOperate}
+                              onClick={() => openMovementDialog(product)}
+                                disabled={!canOperate || isMutating}
                                 aria-label={`Registrar movimiento de ${product.name}`}
                                 title="Registrar movimiento"
                               >
@@ -406,7 +446,7 @@ export function ProductsView() {
                               type="button"
                               className="icon-button"
                               onClick={() => openProductDialog(product)}
-                              disabled={!canOperate}
+                              disabled={!canOperate || isMutating}
                               aria-label={`Editar ${product.name}`}
                               title="Editar"
                             >
@@ -417,13 +457,29 @@ export function ProductsView() {
                                 type="button"
                                 className="icon-button danger-icon-button"
                                 onClick={() => handleArchive(product)}
-                                disabled={!canOperate}
+                                disabled={!canOperate || isMutating}
                                 aria-label={`Archivar ${product.name}`}
                                 title="Archivar"
                               >
                                 <ArchiveIcon size={18} />
                               </button>
-                            ) : null}
+                            ) : (
+                              <button
+                                type="button"
+                                className="icon-button danger-icon-button"
+                                onClick={() => handleDelete(product)}
+                                disabled={!canManage || isMutating}
+                                aria-label={`Eliminar definitivamente ${product.name}`}
+                                title={
+                                  canManage
+                                    ? "Eliminar definitivamente"
+                                    : "Solo propietarios y administradores"
+                                }
+                                aria-busy={deletingProductId === product.id}
+                              >
+                                <TrashIcon size={18} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

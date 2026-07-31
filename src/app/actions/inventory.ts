@@ -321,6 +321,30 @@ export async function archiveProductAction(
   }
 }
 
+export async function deleteProductAction(
+  productId: string,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = z.string().uuid().safeParse(productId);
+  if (!parsed.success) {
+    return dataError("El producto seleccionado no es válido.");
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("delete_inventory_product", {
+      p_product_id: parsed.data,
+    });
+
+    if (error) return dataError(error.message);
+    return refreshedWorkspace("Producto eliminado definitivamente.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
 export async function recordMovementAction(
   input: MovementInput,
 ): Promise<ActionResult<WorkspaceData>> {
