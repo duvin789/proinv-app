@@ -28,7 +28,8 @@ import {
 
 export function ReportsView() {
   const { workspace, openMovementDialog } = useInventory();
-  const { products, categories, movements, organization } = workspace;
+  const { products, categories, suppliers, movements, organization } =
+    workspace;
   const canOperate = workspace.viewer.role !== "viewer";
   const activeProducts = useMemo(
     () => products.filter((product) => product.active),
@@ -41,6 +42,10 @@ export function ReportsView() {
   const categoryMap = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
+  );
+  const supplierMap = useMemo(
+    () => new Map(suppliers.map((supplier) => [supplier.id, supplier])),
+    [suppliers],
   );
 
   const categoryStats = useMemo(() => {
@@ -150,8 +155,8 @@ export function ReportsView() {
     downloadCsv(
       `reporte-inventario-${new Date().toISOString().slice(0, 10)}.csv`,
       [
-        "SKU",
         "Producto",
+        "Proveedor",
         "Categoría",
         "Stock",
         "Stock mínimo",
@@ -164,8 +169,8 @@ export function ReportsView() {
         "Estado",
       ],
       activeProducts.map((product) => [
-        product.sku,
         product.name,
+        supplierMap.get(product.supplierId || "")?.name || "Sin proveedor",
         categoryMap.get(product.categoryId || "")?.name || "Sin categoría",
         product.currentStock,
         product.minStock,
@@ -461,7 +466,10 @@ export function ReportsView() {
                         </span>
                         <div>
                           <strong>{item.product.name}</strong>
-                          <span>{item.product.sku}</span>
+                          <span>
+                            {supplierMap.get(item.product.supplierId || "")
+                              ?.name || "Sin proveedor"}
+                          </span>
                         </div>
                       </div>
                     </td>

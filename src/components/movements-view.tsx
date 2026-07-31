@@ -75,8 +75,7 @@ export function MovementsView() {
       const matchesSearch =
         !normalizedQuery ||
         product?.name.toLocaleLowerCase("es").includes(normalizedQuery) ||
-        product?.sku.toLocaleLowerCase("es").includes(normalizedQuery) ||
-        movement.reference
+        movement.reason
           ?.toLocaleLowerCase("es")
           .includes(normalizedQuery) ||
         movement.note?.toLocaleLowerCase("es").includes(normalizedQuery);
@@ -127,7 +126,6 @@ export function MovementsView() {
       [
         "Fecha",
         "Producto",
-        "SKU",
         "Tipo",
         "Cantidad",
         "Stock anterior",
@@ -137,15 +135,14 @@ export function MovementsView() {
         "Costo total",
         "Ingreso",
         "Ganancia bruta",
-        "Referencia",
-        "Nota",
+        "Motivo",
+        "Observación",
       ],
       filteredMovements.map((movement) => {
         const product = productMap.get(movement.productId);
         return [
           movement.occurredAt,
           product?.name || "Producto eliminado",
-          product?.sku || "",
           movementLabels[movement.type],
           movement.quantity,
           movement.stockBefore,
@@ -155,7 +152,7 @@ export function MovementsView() {
           movement.totalCost,
           movement.revenue,
           movement.grossProfit,
-          movement.reference || "",
+          movement.reason || "",
           movement.note || "",
         ];
       }),
@@ -231,7 +228,7 @@ export function MovementsView() {
               setQuery(event.target.value);
               setPage(1);
             }}
-            placeholder="Buscar producto, referencia o nota"
+            placeholder="Buscar producto, motivo u observación"
             aria-label="Buscar movimientos"
           />
         </div>
@@ -292,7 +289,7 @@ export function MovementsView() {
                     <th>Producto</th>
                     <th>Movimiento</th>
                     <th>Almacén</th>
-                    <th>Referencia</th>
+                    <th>Motivo</th>
                     <th className="align-right">Cantidad</th>
                     <th className="align-right">Stock</th>
                     <th className="align-right">Importe</th>
@@ -307,8 +304,9 @@ export function MovementsView() {
                         productMap.get(movement.productId)?.name ||
                         "Producto eliminado"
                       }
-                      productSku={
-                        productMap.get(movement.productId)?.sku || "Sin SKU"
+                      productUnit={
+                        productMap.get(movement.productId)?.unit ||
+                        "Sin unidad"
                       }
                       warehouseName={
                         warehouseMap.get(movement.warehouseId)?.name ||
@@ -375,14 +373,14 @@ export function MovementsView() {
 function MovementRow({
   movement,
   productName,
-  productSku,
+  productUnit,
   warehouseName,
   currency,
   locale,
 }: {
   movement: InventoryMovement;
   productName: string;
-  productSku: string;
+  productUnit: string;
   warehouseName: string;
   currency: string;
   locale: string;
@@ -411,7 +409,7 @@ function MovementRow({
           </span>
           <div>
             <strong>{productName}</strong>
-            <span>{productSku}</span>
+            <span>{productUnit}</span>
           </div>
         </div>
       </td>
@@ -428,9 +426,9 @@ function MovementRow({
         </span>
       </td>
       <td data-label="Almacén">{warehouseName}</td>
-      <td data-label="Referencia">
-        <div className="reference-cell">
-          <strong>{movement.reference || "Sin referencia"}</strong>
+      <td data-label="Motivo">
+        <div className="reason-cell">
+          <strong>{movement.reason || "Sin motivo"}</strong>
           {movement.note ? <span>{movement.note}</span> : null}
         </div>
       </td>

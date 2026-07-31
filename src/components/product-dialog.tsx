@@ -8,13 +8,72 @@ import { useInventory } from "@/components/inventory-provider";
 import { Modal } from "@/components/ui/modal";
 import type { ProductInput, ProductUpdateInput } from "@/lib/types";
 
+const manufacturingUnits = [
+  "unidad",
+  "pieza",
+  "par",
+  "juego",
+  "kit",
+  "docena",
+  "milímetro",
+  "centímetro",
+  "pulgada",
+  "metro",
+  "metro lineal",
+  "metro de tela",
+  "metro cuadrado",
+  "metro cúbico",
+  "pie",
+  "pie lineal",
+  "pie cuadrado",
+  "pie tablar",
+  "yarda",
+  "gramo",
+  "kilogramo",
+  "tonelada",
+  "libra",
+  "onza",
+  "mililitro",
+  "litro",
+  "galón",
+  "rollo",
+  "bobina",
+  "carrete",
+  "cono",
+  "madeja",
+  "plancha",
+  "placa",
+  "panel",
+  "lámina",
+  "chapa",
+  "tablero",
+  "tablón",
+  "listón",
+  "barra",
+  "perfil",
+  "tubo",
+  "varilla",
+  "bloque",
+  "caja",
+  "paquete",
+  "bolsa",
+  "saco",
+  "fardo",
+  "lote",
+  "pallet",
+  "tambor",
+  "balde",
+  "bidón",
+  "botella",
+  "tarro",
+  "resma",
+] as const;
+
 const emptyForm = {
   name: "",
-  sku: "",
-  barcode: "",
   description: "",
   categoryId: "",
-  supplierId: "",
+  supplierName: "",
   warehouseId: "",
   unit: "unidad",
   purchasePrice: "0",
@@ -42,11 +101,12 @@ export function ProductDialog() {
     return product
       ? {
           name: product.name,
-          sku: product.sku,
-          barcode: product.barcode || "",
           description: product.description || "",
           categoryId: product.categoryId || "",
-          supplierId: product.supplierId || "",
+          supplierName:
+            workspace.suppliers.find(
+              (supplier) => supplier.id === product.supplierId,
+            )?.name || "",
           warehouseId,
           unit: product.unit,
           purchasePrice: String(product.purchasePrice),
@@ -101,11 +161,9 @@ export function ProductDialog() {
 
     const base = {
       name: form.name,
-      sku: form.sku || undefined,
-      barcode: form.barcode || undefined,
       description: form.description || undefined,
       categoryId: form.categoryId || undefined,
-      supplierId: form.supplierId || undefined,
+      supplierName: form.supplierName || undefined,
       unit: form.unit,
       purchasePrice: Number(form.purchasePrice),
       salePrice: Number(form.salePrice),
@@ -116,7 +174,6 @@ export function ProductDialog() {
       ? await updateProduct({
           ...base,
           id: editingProduct.id,
-          sku: form.sku,
         } satisfies ProductUpdateInput)
       : await createProduct({
           ...base,
@@ -147,7 +204,7 @@ export function ProductDialog() {
         <div className="form-section">
           <div className="form-section-heading">
             <h3>Identificación</h3>
-            <p>El SKU se genera automáticamente si lo dejas vacío.</p>
+            <p>El identificador interno se genera automáticamente.</p>
           </div>
           <div className="form-grid form-grid-2">
             <label className="field field-span-2">
@@ -156,31 +213,10 @@ export function ProductDialog() {
                 name="name"
                 value={form.name}
                 onChange={(event) => updateField("name", event.target.value)}
-                placeholder="Ej. Café molido 500 g"
+                placeholder="Ej. Espuma D20 de 4 pulgadas"
                 autoFocus
                 required
                 maxLength={140}
-              />
-            </label>
-            <label className="field">
-              <span>SKU</span>
-              <input
-                name="sku"
-                value={form.sku}
-                onChange={(event) => updateField("sku", event.target.value)}
-                placeholder="Generación automática"
-                required={Boolean(editingProduct)}
-                maxLength={40}
-              />
-            </label>
-            <label className="field">
-              <span>Código de barras</span>
-              <input
-                name="barcode"
-                value={form.barcode}
-                onChange={(event) => updateField("barcode", event.target.value)}
-                placeholder="Opcional"
-                maxLength={80}
               />
             </label>
             <label className="field">
@@ -201,21 +237,23 @@ export function ProductDialog() {
               </select>
             </label>
             <label className="field">
-              <span>Proveedor principal</span>
-              <select
-                name="supplierId"
-                value={form.supplierId}
+              <span>Proveedor (ingreso manual)</span>
+              <input
+                name="supplierName"
+                list="supplier-options"
+                value={form.supplierName}
                 onChange={(event) =>
-                  updateField("supplierId", event.target.value)
+                  updateField("supplierName", event.target.value)
                 }
-              >
-                <option value="">Sin proveedor</option>
+                placeholder="Escribe el nombre del proveedor"
+                maxLength={120}
+                autoComplete="off"
+              />
+              <datalist id="supplier-options">
                 {workspace.suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
+                  <option key={supplier.id} value={supplier.name} />
                 ))}
-              </select>
+              </datalist>
             </label>
             <label className="field field-span-2">
               <span>Descripción</span>
@@ -225,7 +263,7 @@ export function ProductDialog() {
                 onChange={(event) =>
                   updateField("description", event.target.value)
                 }
-                placeholder="Detalles útiles para identificarlo"
+                placeholder="Material, densidad, medida, color o acabado"
                 rows={2}
                 maxLength={500}
               />
@@ -275,19 +313,21 @@ export function ProductDialog() {
             </label>
             <label className="field">
               <span>Unidad de medida</span>
-              <select
+              <input
                 name="unit"
+                list="manufacturing-unit-options"
                 value={form.unit}
                 onChange={(event) => updateField("unit", event.target.value)}
-              >
-                <option value="unidad">Unidad</option>
-                <option value="caja">Caja</option>
-                <option value="bolsa">Bolsa</option>
-                <option value="paquete">Paquete</option>
-                <option value="rollo">Rollo</option>
-                <option value="kg">Kilogramo</option>
-                <option value="litro">Litro</option>
-              </select>
+                placeholder="Ej. metro, kg, plancha"
+                maxLength={24}
+                required
+                autoComplete="off"
+              />
+              <datalist id="manufacturing-unit-options">
+                {manufacturingUnits.map((unit) => (
+                  <option key={unit} value={unit} />
+                ))}
+              </datalist>
             </label>
             {!editingProduct ? (
               <label className="field">

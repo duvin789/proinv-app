@@ -64,8 +64,6 @@ interface DbProduct {
   organization_id: string;
   category_id: string | null;
   supplier_id: string | null;
-  sku: string;
-  barcode: string | null;
   name: string;
   description: string | null;
   unit: string;
@@ -183,7 +181,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     supabase
       .from("products")
       .select(
-        "id, organization_id, category_id, supplier_id, sku, barcode, name, description, unit, purchase_price, sale_price, min_stock, active, created_at, updated_at",
+        "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, active, created_at, updated_at",
       )
       .eq("organization_id", organizationId)
       .order("name"),
@@ -290,8 +288,6 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       organizationId: product.organization_id,
       categoryId: product.category_id,
       supplierId: product.supplier_id,
-      sku: product.sku,
-      barcode: product.barcode,
       name: product.name,
       description: product.description,
       unit: product.unit,
@@ -324,7 +320,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     revenue: toNumber(movement.revenue),
     grossProfit: toNumber(movement.gross_profit),
     note: movement.note,
-    reference: movement.reference,
+    reason: movement.reference,
     occurredAt: movement.occurred_at,
     createdBy: movement.created_by,
   }));

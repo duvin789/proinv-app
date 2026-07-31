@@ -1847,13 +1847,13 @@ button {
 }
 
 .table-date,
-.reference-cell {
+.reason-cell {
   display: grid;
   gap: 3px;
 }
 
 .table-date strong,
-.reference-cell strong {
+.reason-cell strong {
   color: var(--ink-strong);
   font-size: 9.5px;
   font-weight: 590;
@@ -1861,7 +1861,7 @@ button {
 }
 
 .table-date span,
-.reference-cell span,
+.reason-cell span,
 .profit-caption {
   display: block;
   max-width: 170px;

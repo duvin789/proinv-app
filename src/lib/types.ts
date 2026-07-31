@@ -61,8 +61,6 @@ export interface Product {
   organizationId: string;
   categoryId: string | null;
   supplierId: string | null;
-  sku: string;
-  barcode: string | null;
   name: string;
   description: string | null;
   unit: string;
@@ -91,7 +89,7 @@ export interface InventoryMovement {
   revenue: number;
   grossProfit: number;
   note: string | null;
-  reference: string | null;
+  reason: string | null;
   occurredAt: string;
   createdBy: string | null;
 }
@@ -108,11 +106,9 @@ export interface WorkspaceData {
 
 export interface ProductInput {
   name: string;
-  sku?: string;
-  barcode?: string;
   description?: string;
   categoryId?: string;
-  supplierId?: string;
+  supplierName?: string;
   warehouseId: string;
   unit: string;
   purchasePrice: number;
@@ -124,11 +120,9 @@ export interface ProductInput {
 export interface ProductUpdateInput {
   id: string;
   name: string;
-  sku: string;
-  barcode?: string;
   description?: string;
   categoryId?: string;
-  supplierId?: string;
+  supplierName?: string;
   unit: string;
   purchasePrice: number;
   salePrice: number;
@@ -143,7 +137,7 @@ export interface MovementInput {
   unitCost?: number;
   saleUnitPrice?: number;
   note?: string;
-  reference?: string;
+  reason?: string;
 }
 
 export interface OrganizationInput {

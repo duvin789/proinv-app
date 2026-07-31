@@ -23,11 +23,9 @@ const optionalText = z.string().trim().max(300).optional();
 
 const productSchema = z.object({
   name: z.string().trim().min(2).max(140),
-  sku: z.string().trim().max(40).optional(),
-  barcode: z.string().trim().max(80).optional(),
   description: z.string().trim().max(500).optional(),
   categoryId: z.string().trim().optional(),
-  supplierId: z.string().trim().optional(),
+  supplierName: z.string().trim().max(120).optional(),
   warehouseId: z.string().min(1),
   unit: z.string().trim().min(1).max(24),
   purchasePrice: z.number().min(0),
@@ -40,7 +38,6 @@ const productUpdateSchema = productSchema
   .omit({ warehouseId: true, initialStock: true })
   .extend({
     id: z.string().uuid(),
-    sku: z.string().trim().min(1).max(40),
   });
 
 const movementSchema = z.object({
@@ -58,7 +55,7 @@ const movementSchema = z.object({
   unitCost: z.number().min(0).optional(),
   saleUnitPrice: z.number().min(0).optional(),
   note: optionalText,
-  reference: z.string().trim().max(80).optional(),
+  reason: z.string().trim().max(80).optional(),
 });
 
 const organizationSchema = z.object({
@@ -130,6 +127,59 @@ function readableError(error: unknown) {
     : "Ocurrió un error inesperado. Inténtalo nuevamente.";
 }
 
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
+
+function normalizedSupplierName(value: string) {
+  return value.trim().toLocaleLowerCase("es");
+}
+
+async function resolveSupplierId(
+  supabase: SupabaseServerClient,
+  workspace: WorkspaceData,
+  rawSupplierName?: string,
+) {
+  const supplierName = rawSupplierName?.trim();
+  if (!supplierName) return null;
+
+  const normalizedName = normalizedSupplierName(supplierName);
+  const existingSupplier = workspace.suppliers.find(
+    (supplier) => normalizedSupplierName(supplier.name) === normalizedName,
+  );
+  if (existingSupplier) return existingSupplier.id;
+
+  const { data, error } = await supabase
+    .from("suppliers")
+    .insert({
+      organization_id: workspace.organization.id,
+      name: supplierName,
+    })
+    .select("id")
+    .single();
+
+  if (!error && data) return data.id;
+  if (error?.code !== "23505") {
+    throw new Error(
+      "No fue posible registrar el proveedor escrito. Inténtalo nuevamente.",
+    );
+  }
+
+  const { data: suppliers, error: lookupError } = await supabase
+    .from("suppliers")
+    .select("id, name")
+    .eq("organization_id", workspace.organization.id);
+  if (lookupError) throw new Error(lookupError.message);
+
+  const concurrentSupplier = suppliers?.find(
+    (supplier) => normalizedSupplierName(supplier.name) === normalizedName,
+  );
+  if (!concurrentSupplier) {
+    throw new Error("No fue posible relacionar el proveedor escrito.");
+  }
+  return concurrentSupplier.id;
+}
+
 export async function createProductAction(
   input: ProductInput,
 ): Promise<ActionResult<WorkspaceData>> {
@@ -140,15 +190,23 @@ export async function createProductAction(
   if (!parsed.success) return validationError(parsed.error);
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const [workspace, supabase] = await Promise.all([
+      loadWorkspaceData(),
+      createSupabaseServerClient(),
+    ]);
     const value = parsed.data;
+    const supplierId = await resolveSupplierId(
+      supabase,
+      workspace,
+      value.supplierName,
+    );
     const { error } = await supabase.rpc("create_product_with_stock", {
       p_name: value.name,
-      p_sku: value.sku || null,
-      p_barcode: value.barcode || null,
+      p_sku: null,
+      p_barcode: null,
       p_description: value.description || null,
       p_category_id: value.categoryId || null,
-      p_supplier_id: value.supplierId || null,
+      p_supplier_id: supplierId,
       p_warehouse_id: value.warehouseId,
       p_unit: value.unit,
       p_purchase_price: value.purchasePrice,
@@ -174,23 +232,30 @@ export async function updateProductAction(
   if (!parsed.success) return validationError(parsed.error);
 
   try {
-    const supabase = await createSupabaseServerClient();
+    const [workspace, supabase] = await Promise.all([
+      loadWorkspaceData(),
+      createSupabaseServerClient(),
+    ]);
     const value = parsed.data;
+    const supplierId = await resolveSupplierId(
+      supabase,
+      workspace,
+      value.supplierName,
+    );
     const { error } = await supabase
       .from("products")
       .update({
         name: value.name,
-        sku: value.sku,
-        barcode: value.barcode || null,
         description: value.description || null,
         category_id: value.categoryId || null,
-        supplier_id: value.supplierId || null,
+        supplier_id: supplierId,
         unit: value.unit,
         purchase_price: value.purchasePrice,
         sale_price: value.salePrice,
         min_stock: value.minStock,
       })
       .eq("id", value.id)
+      .eq("organization_id", workspace.organization.id)
       .select("id")
       .single();
 
@@ -244,7 +309,7 @@ export async function recordMovementAction(
       p_unit_cost: value.unitCost ?? null,
       p_sale_unit_price: value.saleUnitPrice ?? null,
       p_note: value.note || null,
-      p_reference: value.reference || null,
+      p_reference: value.reason || null,
     });
 
     if (error) return dataError(error.message);

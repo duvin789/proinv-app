@@ -21,7 +21,7 @@ const emptyForm = {
   unitCost: "0",
   saleUnitPrice: "0",
   note: "",
-  reference: "",
+  reason: "",
 };
 
 export function MovementDialog() {
@@ -118,7 +118,7 @@ export function MovementDialog() {
       unitCost: Number(form.unitCost) || undefined,
       saleUnitPrice: Number(form.saleUnitPrice) || undefined,
       note: form.note || undefined,
-      reference: form.reference || undefined,
+      reason: form.reason || undefined,
     });
 
     if (result.ok) closeMovementDialog();
@@ -152,7 +152,7 @@ export function MovementDialog() {
                   .filter((item) => item.active)
                   .map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name} ({item.sku})
+                      {item.name} · {formatNumber(item.currentStock)} {item.unit}
                     </option>
                   ))}
               </select>
@@ -250,23 +250,21 @@ export function MovementDialog() {
                 </div>
               </div>
             )}
-            <label className="field">
-              <span>Referencia</span>
+            <label className="field field-span-2">
+              <span>Motivo</span>
               <input
-                value={form.reference}
-                onChange={(event) =>
-                  updateField("reference", event.target.value)
-                }
-                placeholder="Ej. OC-1048"
+                value={form.reason}
+                onChange={(event) => updateField("reason", event.target.value)}
+                placeholder="Ej. Compra de tela, uso en producción o merma"
                 maxLength={80}
               />
             </label>
             <label className="field field-span-2">
-              <span>Nota</span>
+              <span>Observación adicional</span>
               <textarea
                 value={form.note}
                 onChange={(event) => updateField("note", event.target.value)}
-                placeholder="Motivo o detalle opcional"
+                placeholder="Detalle adicional opcional"
                 rows={2}
                 maxLength={300}
               />

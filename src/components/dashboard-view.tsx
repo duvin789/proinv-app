@@ -48,6 +48,10 @@ export function DashboardView() {
     () => products.filter((product) => product.active),
     [products],
   );
+  const categoryMap = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  );
   const lowStockProducts = useMemo(
     () =>
       activeProducts
@@ -325,7 +329,10 @@ export function DashboardView() {
                     </span>
                     <span className="alert-row-name">
                       <strong>{product.name}</strong>
-                      <small>{product.sku}</small>
+                      <small>
+                        {categoryMap.get(product.categoryId || "")?.name ||
+                          "Sin categoría"}
+                      </small>
                     </span>
                     <span className="alert-row-stock">
                       <strong>
@@ -449,7 +456,11 @@ export function DashboardView() {
                           </span>
                           <div>
                             <strong>{product?.name || "Producto eliminado"}</strong>
-                            <span>{product?.sku || "Sin SKU"}</span>
+                            <span>
+                              {movement.reason ||
+                                movement.note ||
+                                "Sin motivo registrado"}
+                            </span>
                           </div>
                         </div>
                       </td>

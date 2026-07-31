@@ -55,12 +55,16 @@ export function ProductsView() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sort, setSort] = useState<SortOption>("name");
   const [page, setPage] = useState(1);
-  const { products, categories, organization } = workspace;
+  const { products, categories, suppliers, organization } = workspace;
   const canOperate = workspace.viewer.role !== "viewer";
 
   const categoryMap = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
+  );
+  const supplierMap = useMemo(
+    () => new Map(suppliers.map((supplier) => [supplier.id, supplier])),
+    [suppliers],
   );
 
   const filteredProducts = useMemo(() => {
@@ -70,8 +74,10 @@ export function ProductsView() {
       const matchesSearch =
         !normalizedQuery ||
         product.name.toLocaleLowerCase("es").includes(normalizedQuery) ||
-        product.sku.toLocaleLowerCase("es").includes(normalizedQuery) ||
-        product.barcode?.toLocaleLowerCase("es").includes(normalizedQuery);
+        supplierMap
+          .get(product.supplierId || "")
+          ?.name.toLocaleLowerCase("es")
+          .includes(normalizedQuery);
       const matchesCategory =
         categoryFilter === "all" || product.categoryId === categoryFilter;
       const matchesStock =
@@ -99,6 +105,7 @@ export function ProductsView() {
     products,
     sort,
     stockFilter,
+    supplierMap,
   ]);
 
   const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
@@ -117,8 +124,8 @@ export function ProductsView() {
     downloadCsv(
       `inventario-${new Date().toISOString().slice(0, 10)}.csv`,
       [
-        "SKU",
         "Producto",
+        "Proveedor",
         "Categoría",
         "Stock",
         "Unidad",
@@ -131,8 +138,8 @@ export function ProductsView() {
       filteredProducts.map((product) => {
         const status = getStockStatus(product);
         return [
-          product.sku,
           product.name,
+          supplierMap.get(product.supplierId || "")?.name || "Sin proveedor",
           categoryMap.get(product.categoryId || "")?.name || "Sin categoría",
           product.currentStock,
           product.unit,
@@ -165,7 +172,7 @@ export function ProductsView() {
               setQuery(event.target.value);
               setPage(1);
             }}
-            placeholder="Buscar por producto, SKU o código"
+            placeholder="Buscar por producto o proveedor"
             aria-label="Buscar productos"
           />
         </div>
@@ -312,10 +319,8 @@ export function ProductsView() {
                             <div>
                               <strong>{product.name}</strong>
                               <span>
-                                {product.sku}
-                                {product.barcode
-                                  ? ` / ${product.barcode}`
-                                  : ""}
+                                {supplierMap.get(product.supplierId || "")
+                                  ?.name || "Sin proveedor"}
                               </span>
                             </div>
                           </div>
