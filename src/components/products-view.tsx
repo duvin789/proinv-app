@@ -61,8 +61,7 @@ export function ProductsView() {
   const [deletingProductId, setDeletingProductId] = useState<string | null>(
     null,
   );
-  const { products, categories, suppliers, movements, organization } =
-    workspace;
+  const { products, categories, suppliers, organization } = workspace;
   const canOperate = workspace.viewer.role !== "viewer";
   const canManage =
     workspace.viewer.role === "owner" || workspace.viewer.role === "admin";
@@ -75,11 +74,6 @@ export function ProductsView() {
     () => new Map(suppliers.map((supplier) => [supplier.id, supplier])),
     [suppliers],
   );
-  const productsWithVisibleHistory = useMemo(
-    () => new Set(movements.map((movement) => movement.productId)),
-    [movements],
-  );
-
   const filteredProducts = useMemo(() => {
     const normalizedQuery = deferredQuery.trim().toLocaleLowerCase("es");
     const result = products.filter((product) => {
@@ -174,27 +168,22 @@ export function ProductsView() {
   }
 
   async function handleDelete(product: Product) {
-    if (Math.abs(product.currentStock) >= 0.0005) {
-      window.alert(
-        "No se puede eliminar porque todavía tiene stock. Registra primero la salida correspondiente.",
-      );
-      return;
-    }
-    if (productsWithVisibleHistory.has(product.id)) {
-      window.alert(
-        "No se puede eliminar porque tiene historial de movimientos. Debe permanecer archivado para conservar la trazabilidad.",
-      );
-      return;
-    }
-
     const confirmation = window.prompt(
-      `Esta acción eliminará definitivamente “${product.name}”. Escribe ELIMINAR para confirmar.`,
+      `Vas a eliminar definitivamente “${product.name}”.
+
+Se borrarán:
+• ${formatNumber(product.currentStock, organization.locale)} ${product.unit} de stock.
+• Todo su historial de movimientos.
+• Sus cálculos asociados.
+
+Esta acción no se puede deshacer.
+Escribe ELIMINAR para confirmar.`,
     );
     if (confirmation?.trim().toLocaleUpperCase("es") !== "ELIMINAR") return;
 
     setDeletingProductId(product.id);
     try {
-      await deleteProduct(product.id);
+      await deleteProduct(product.id, confirmation);
     } finally {
       setDeletingProductId(null);
     }

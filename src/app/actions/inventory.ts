@@ -323,6 +323,7 @@ export async function archiveProductAction(
 
 export async function deleteProductAction(
   productId: string,
+  confirmation: string,
 ): Promise<ActionResult<WorkspaceData>> {
   const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
   if (configured) return configured;
@@ -331,11 +332,15 @@ export async function deleteProductAction(
   if (!parsed.success) {
     return dataError("El producto seleccionado no es válido.");
   }
+  if (confirmation.trim().toLocaleUpperCase("es") !== "ELIMINAR") {
+    return dataError("Escribe ELIMINAR para confirmar la operación.");
+  }
 
   try {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.rpc("delete_inventory_product", {
       p_product_id: parsed.data,
+      p_confirmation: "ELIMINAR",
     });
 
     if (error) return dataError(error.message);

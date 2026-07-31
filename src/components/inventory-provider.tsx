@@ -78,6 +78,7 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   deleteProduct: (
     productId: string,
+    confirmation: string,
   ) => Promise<ActionResult<WorkspaceData>>;
   recordMovement: (
     input: MovementInput,
@@ -217,8 +218,8 @@ export function InventoryProvider({
   );
 
   const deleteProduct = useCallback(
-    (productId: string) =>
-      runRemote(() => deleteProductAction(productId)),
+    (productId: string, confirmation: string) =>
+      runRemote(() => deleteProductAction(productId, confirmation)),
     [runRemote],
   );
 
