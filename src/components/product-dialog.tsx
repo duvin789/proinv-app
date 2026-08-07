@@ -80,6 +80,7 @@ const emptyForm = {
   salePrice: "0",
   initialStock: "0",
   minStock: "5",
+  maxStock: "",
 };
 
 export function ProductDialog() {
@@ -113,6 +114,8 @@ export function ProductDialog() {
           salePrice: String(product.salePrice),
           initialStock: String(product.currentStock),
           minStock: String(product.minStock),
+          maxStock:
+            product.maxStock === null ? "" : String(product.maxStock),
         }
       : { ...emptyForm, warehouseId };
   });
@@ -153,9 +156,18 @@ export function ProductDialog() {
       Number(form.salePrice),
       Number(form.initialStock),
       Number(form.minStock),
+      form.maxStock === "" ? 0 : Number(form.maxStock),
     ];
     if (numericValues.some((value) => !Number.isFinite(value) || value < 0)) {
       setError("Los precios y las cantidades deben ser números positivos.");
+      return;
+    }
+
+    if (
+      form.maxStock !== "" &&
+      Number(form.maxStock) < Number(form.minStock)
+    ) {
+      setError("El stock máximo no puede ser menor que el stock mínimo.");
       return;
     }
 
@@ -168,6 +180,7 @@ export function ProductDialog() {
       purchasePrice: Number(form.purchasePrice),
       salePrice: Number(form.salePrice),
       minStock: Number(form.minStock),
+      maxStock: form.maxStock === "" ? null : Number(form.maxStock),
     };
 
     const result = editingProduct
@@ -357,6 +370,20 @@ export function ProductDialog() {
                   updateField("minStock", event.target.value)
                 }
                 required
+              />
+            </label>
+            <label className="field">
+              <span>Stock máximo</span>
+              <input
+                name="maxStock"
+                type="number"
+                min="0"
+                step="0.001"
+                value={form.maxStock}
+                onChange={(event) =>
+                  updateField("maxStock", event.target.value)
+                }
+                placeholder="Opcional"
               />
             </label>
             {!editingProduct ? (

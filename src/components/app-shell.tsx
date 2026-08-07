@@ -18,13 +18,28 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { signOutAction } from "@/app/actions/auth";
 import { useInventory } from "@/components/inventory-provider";
-import { MovementDialog } from "@/components/movement-dialog";
-import { ProductDialog } from "@/components/product-dialog";
+import {
+  applyPreferences,
+  preferencesChangedEvent,
+  readPreferences,
+  savePreferences,
+  type AppPreferences,
+} from "@/lib/preferences";
+
+const ProductDialog = dynamic(() =>
+  import("@/components/product-dialog").then((module) => module.ProductDialog),
+);
+const MovementDialog = dynamic(() =>
+  import("@/components/movement-dialog").then(
+    (module) => module.MovementDialog,
+  ),
+);
 
 const navItems = [
   {
@@ -90,28 +105,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   } = useInventory();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [preferences, setPreferences] = useState<AppPreferences>({
+    theme: "system",
+    density: "comfortable",
+    stockAlerts: true,
+  });
   const page = pageTitles[pathname] || pageTitles["/dashboard"];
   const canOperate = workspace.viewer.role !== "viewer";
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const stored = window.localStorage.getItem("proinv-theme");
-      const nextTheme =
-        stored === "dark" ||
-        (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)
-          ? "dark"
-          : "light";
-      setTheme(nextTheme);
-      document.documentElement.dataset.theme = nextTheme;
-    });
-    return () => window.cancelAnimationFrame(frame);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => {
+      const next = readPreferences();
+      applyPreferences(next);
+      setPreferences(next);
+      setTheme(
+        document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+      );
+    };
+    const frame = window.requestAnimationFrame(sync);
+    media.addEventListener("change", sync);
+    window.addEventListener(preferencesChangedEvent, sync);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      media.removeEventListener("change", sync);
+      window.removeEventListener(preferencesChangedEvent, sync);
+    };
   }, []);
 
   function toggleTheme() {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
-    document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem("proinv-theme", nextTheme);
+    const nextPreferences: AppPreferences = {
+      ...preferences,
+      theme: nextTheme,
+    };
+    setPreferences(nextPreferences);
+    savePreferences(nextPreferences);
   }
 
   return (
@@ -251,7 +281,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               title="Ver alertas de stock"
             >
               <BellSimpleIcon size={20} />
-              {workspace.products.some(
+              {preferences.stockAlerts && workspace.products.some(
                 (product) =>
                   product.active && product.currentStock <= product.minStock,
               ) ? (

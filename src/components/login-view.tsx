@@ -3,13 +3,11 @@
 import {
   ArrowRightIcon,
   CalculatorIcon,
-  CheckCircleIcon,
   EyeIcon,
   EyeSlashIcon,
   LockKeyIcon,
   PackageIcon,
 } from "@phosphor-icons/react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -17,93 +15,45 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function LoginView({ configured }: { configured: boolean }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-  });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<{
-    tone: "error" | "success";
-    text: string;
-  } | null>(null);
+  const [message, setMessage] = useState("");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
+    setMessage("");
 
     if (!configured) {
-      setMessage({
-        tone: "error",
-        text: "Supabase no está configurado. Agrega las variables de entorno para acceder.",
-      });
-      return;
-    }
-    if (mode === "register" && form.fullName.trim().length < 2) {
-      setMessage({ tone: "error", text: "Ingresa tu nombre completo." });
-      return;
-    }
-    if (form.password.length < 8) {
-      setMessage({
-        tone: "error",
-        text: "La contraseña debe tener al menos 8 caracteres.",
-      });
+      setMessage(
+        "Supabase no está configurado. Agrega las variables de entorno para acceder.",
+      );
       return;
     }
 
     setPending(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password,
-        });
-        if (error) {
-          setMessage({
-            tone: "error",
-            text:
-              error.message === "Invalid login credentials"
-                ? "El correo o la contraseña no son correctos."
-                : error.message,
-          });
-          return;
-        }
-        router.push("/dashboard");
-        router.refresh();
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-          options: {
-            data: { full_name: form.fullName.trim() },
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-        if (error) {
-          setMessage({ tone: "error", text: error.message });
-          return;
-        }
-        if (data.session) {
-          router.push("/dashboard");
-          router.refresh();
-        } else {
-          setMessage({
-            tone: "success",
-            text: "Cuenta creada. Revisa tu correo para confirmar el acceso.",
-          });
-        }
-      }
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text:
-          error instanceof Error
-            ? error.message
-            : "No fue posible completar el acceso.",
+      const { error } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.password,
       });
+      if (error) {
+        setMessage(
+          error.message === "Invalid login credentials"
+            ? "El correo o la contraseña no son correctos."
+            : error.message,
+        );
+        return;
+      }
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No fue posible completar el acceso.",
+      );
     } finally {
       setPending(false);
     }
@@ -112,22 +62,23 @@ export function LoginView({ configured }: { configured: boolean }) {
   return (
     <main className="login-page">
       <section className="login-story">
-        <Link href="/" className="login-brand">
+        <div className="login-brand">
           <span className="brand-mark" aria-hidden="true">
             <span />
             <span />
             <span />
           </span>
           <strong>Almacén LuisGB</strong>
-        </Link>
+        </div>
+
         <div className="login-story-copy">
-          <span className="login-eyebrow">Inventario sin fórmulas manuales</span>
-          <h1>Registra el producto. Los números se ordenan solos.</h1>
+          <span className="login-eyebrow">Inventario calculado al momento</span>
+          <h1>Control claro para cada entrada y salida.</h1>
           <p>
-            Stock, costo promedio, valorización y margen se recalculan con cada
-            movimiento.
+            Consulta existencias, costos y rentabilidad desde un solo lugar.
           </p>
         </div>
+
         <div className="login-calculation">
           <div className="login-calculation-heading">
             <span className="calculation-symbol">
@@ -151,20 +102,6 @@ export function LoginView({ configured }: { configured: boolean }) {
             <strong>42 unidades</strong>
           </div>
         </div>
-        <div className="login-benefits">
-          <span>
-            <CheckCircleIcon size={18} weight="fill" />
-            Historial completo
-          </span>
-          <span>
-            <CheckCircleIcon size={18} weight="fill" />
-            Alertas de reposición
-          </span>
-          <span>
-            <CheckCircleIcon size={18} weight="fill" />
-            Datos protegidos
-          </span>
-        </div>
       </section>
 
       <section className="login-form-side">
@@ -174,60 +111,11 @@ export function LoginView({ configured }: { configured: boolean }) {
               <PackageIcon size={22} weight="duotone" />
               Almacén LuisGB
             </span>
-            <h2>{mode === "login" ? "Bienvenido" : "Crea tu espacio"}</h2>
-            <p>
-              {mode === "login"
-                ? "Accede para continuar con tu inventario."
-                : "Tu empresa y almacén principal se crearán automáticamente."}
-            </p>
-          </div>
-
-          <div className="auth-tabs" role="tablist" aria-label="Tipo de acceso">
-            <button
-              type="button"
-              className={mode === "login" ? "is-active" : ""}
-              onClick={() => {
-                setMode("login");
-                setMessage(null);
-              }}
-              role="tab"
-              aria-selected={mode === "login"}
-            >
-              Iniciar sesión
-            </button>
-            <button
-              type="button"
-              className={mode === "register" ? "is-active" : ""}
-              onClick={() => {
-                setMode("register");
-                setMessage(null);
-              }}
-              role="tab"
-              aria-selected={mode === "register"}
-            >
-              Crear cuenta
-            </button>
+            <h2>Iniciar sesión</h2>
+            <p>Ingresa con la cuenta administrada desde Supabase.</p>
           </div>
 
           <form className="login-form" onSubmit={handleSubmit}>
-            {mode === "register" ? (
-              <label className="field">
-                <span>Nombre completo</span>
-                <input
-                  value={form.fullName}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      fullName: event.target.value,
-                    }))
-                  }
-                  placeholder="Tu nombre"
-                  autoComplete="name"
-                  disabled={!configured}
-                  required
-                />
-              </label>
-            ) : null}
             <label className="field">
               <span>Correo electrónico</span>
               <input
@@ -241,9 +129,9 @@ export function LoginView({ configured }: { configured: boolean }) {
                 }
                 placeholder="nombre@empresa.com"
                 autoComplete="email"
-                disabled={!configured}
+                disabled={!configured || pending}
                 required
-                autoFocus={mode === "login"}
+                autoFocus
               />
             </label>
             <label className="field">
@@ -259,12 +147,9 @@ export function LoginView({ configured }: { configured: boolean }) {
                       password: event.target.value,
                     }))
                   }
-                  placeholder="Mínimo 8 caracteres"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  disabled={!configured}
-                  minLength={8}
+                  placeholder="Tu contraseña"
+                  autoComplete="current-password"
+                  disabled={!configured || pending}
                   required
                 />
                 <button
@@ -273,7 +158,7 @@ export function LoginView({ configured }: { configured: boolean }) {
                   aria-label={
                     showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
                   }
-                  disabled={!configured}
+                  disabled={!configured || pending}
                 >
                   {showPassword ? (
                     <EyeSlashIcon size={18} />
@@ -285,8 +170,8 @@ export function LoginView({ configured }: { configured: boolean }) {
             </label>
 
             {message ? (
-              <div className={`auth-message auth-${message.tone}`} role="alert">
-                {message.text}
+              <div className="auth-message auth-error" role="alert">
+                {message}
               </div>
             ) : null}
 
@@ -295,11 +180,7 @@ export function LoginView({ configured }: { configured: boolean }) {
               className="button button-primary login-submit"
               disabled={pending || !configured}
             >
-              {pending
-                ? "Procesando..."
-                : mode === "login"
-                  ? "Entrar"
-                  : "Crear mi cuenta"}
+              {pending ? "Verificando..." : "Entrar"}
               {!pending ? <ArrowRightIcon size={18} weight="bold" /> : null}
             </button>
           </form>
@@ -317,7 +198,8 @@ export function LoginView({ configured }: { configured: boolean }) {
           ) : null}
 
           <p className="login-security-note">
-            El acceso usa Supabase Auth y las filas se aíslan por organización.
+            No se crean cuentas desde esta pantalla. El acceso y los permisos
+            se gestionan en Supabase.
           </p>
         </div>
       </section>

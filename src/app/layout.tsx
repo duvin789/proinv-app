@@ -40,7 +40,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('proinv-theme');var d=t||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=d}catch(e){}})();",
+              "(function(){try{var t=localStorage.getItem('proinv-theme');var d=!t||t==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;document.documentElement.dataset.theme=d;document.documentElement.dataset.density=localStorage.getItem('proinv-density')==='compact'?'compact':'comfortable'}catch(e){}})();",
           }}
         />
       </head>

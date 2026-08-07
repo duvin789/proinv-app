@@ -19,7 +19,7 @@ import {
 } from "react";
 
 import { useInventory } from "@/components/inventory-provider";
-import { downloadCsv } from "@/lib/csv";
+import { downloadTableWorkbook } from "@/lib/excel";
 import {
   formatCurrency,
   formatNumber,
@@ -127,9 +127,10 @@ export function ProductsView() {
     setPage(1);
   }
 
-  function exportProducts() {
-    downloadCsv(
-      `inventario-${new Date().toISOString().slice(0, 10)}.csv`,
+  async function exportProducts() {
+    await downloadTableWorkbook(
+      `inventario-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      "Inventario",
       [
         "Producto",
         "Proveedor",
@@ -239,7 +240,7 @@ Escribe ELIMINAR para confirmar.`,
           disabled={filteredProducts.length === 0}
         >
           <DownloadSimpleIcon size={18} weight="bold" />
-          Exportar
+          Exportar Excel
         </button>
       </section>
 

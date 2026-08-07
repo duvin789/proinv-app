@@ -10,6 +10,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   ActionResult,
   CategoryInput,
+  InventoryImportRow,
   MemberRole,
   MovementInput,
   MovementReasonInput,
@@ -36,6 +37,7 @@ const productSchema = z.object({
   salePrice: z.number().min(0),
   initialStock: z.number().min(0),
   minStock: z.number().min(0),
+  maxStock: z.number().min(0).nullable().optional(),
 });
 
 const productUpdateSchema = productSchema
@@ -112,6 +114,27 @@ const warehouseSchema = z.object({
   location: z.string().trim().max(200).optional(),
 });
 
+const inventoryImportRowSchema = z
+  .object({
+    name: z.string().trim().min(2).max(140),
+    category: z.string().trim().max(60).optional(),
+    supplier: z.string().trim().max(120).optional(),
+    description: z.string().trim().max(500).optional(),
+    purchasePrice: z.number().min(0),
+    salePrice: z.number().min(0),
+    unit: z.string().trim().min(1).max(24),
+    initialStock: z.number().min(0),
+    maxStock: z.number().min(0).nullable().optional(),
+    minStock: z.number().min(0),
+    warehouse: z.string().trim().max(120).optional(),
+  })
+  .refine(
+    (row) => row.maxStock == null || row.maxStock >= row.minStock,
+    { message: "El stock máximo no puede ser menor que el mínimo." },
+  );
+
+const inventoryImportSchema = z.array(inventoryImportRowSchema).min(1).max(1000);
+
 function validationError<T>(error: z.ZodError): ActionResult<T> {
   return {
     ok: false,
@@ -126,6 +149,7 @@ function dataError<T>(message: string): ActionResult<T> {
 
 const operatorRoles: MemberRole[] = ["owner", "admin", "operator"];
 const administratorRoles: MemberRole[] = ["owner", "admin"];
+const ownerRoles: MemberRole[] = ["owner"];
 
 async function ensureSupabase<T>(
   allowedRoles: MemberRole[],
@@ -232,7 +256,7 @@ export async function createProductAction(
       workspace,
       value.supplierName,
     );
-    const { error } = await supabase.rpc("create_product_with_stock", {
+    const { error } = await supabase.rpc("create_product_with_stock_v2", {
       p_name: value.name,
       p_sku: null,
       p_barcode: null,
@@ -245,6 +269,7 @@ export async function createProductAction(
       p_sale_price: value.salePrice,
       p_initial_stock: value.initialStock,
       p_min_stock: value.minStock,
+      p_max_stock: value.maxStock ?? null,
     });
 
     if (error) return dataError(error.message);
@@ -285,6 +310,7 @@ export async function updateProductAction(
         purchase_price: value.purchasePrice,
         sale_price: value.salePrice,
         min_stock: value.minStock,
+        max_stock: value.maxStock ?? null,
       })
       .eq("id", value.id)
       .eq("organization_id", workspace.organization.id)
@@ -674,6 +700,61 @@ export async function createWarehouseAction(
 
     if (error) return dataError(error.message);
     return refreshedWorkspace("Almacén creado y disponible para el inventario.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function importInventoryProductsAction(
+  rows: InventoryImportRow[],
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = inventoryImportSchema.safeParse(rows);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase.rpc("import_inventory_products", {
+      p_rows: parsed.data,
+    });
+
+    if (error) return dataError(error.message);
+    const summary = data as { created?: number; skipped?: number } | null;
+    const created = Number(summary?.created || 0);
+    const skipped = Number(summary?.skipped || 0);
+    const skippedText = skipped
+      ? ` Se omitieron ${skipped} coincidencias ya existentes.`
+      : "";
+    return refreshedWorkspace(
+      `${created} ${created === 1 ? "producto importado" : "productos importados"}.${skippedText}`,
+    );
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function clearInventoryDataAction(
+  confirmation: string,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(ownerRoles);
+  if (configured) return configured;
+
+  if (confirmation.trim().toLocaleUpperCase("es") !== "BORRAR TODO") {
+    return dataError("Escribe BORRAR TODO para confirmar la operación.");
+  }
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.rpc("clear_inventory_data", {
+      p_confirmation: "BORRAR TODO",
+    });
+
+    if (error) return dataError(error.message);
+    return refreshedWorkspace(
+      "Todos los datos de inventario fueron borrados. La cuenta y la empresa se conservaron.",
+    );
   } catch (error) {
     return dataError(readableError(error));
   }

@@ -13,7 +13,7 @@ import {
 import { useMemo } from "react";
 
 import { useInventory } from "@/components/inventory-provider";
-import { downloadCsv } from "@/lib/csv";
+import { downloadTableWorkbook } from "@/lib/excel";
 import {
   formatCompactCurrency,
   formatCurrency,
@@ -119,7 +119,7 @@ export function ReportsView() {
       .filter((product) => getStockStatus(product) !== "healthy")
       .map((product) => {
         const suggestedQuantity = Math.max(
-          product.minStock * 2 - product.currentStock,
+          (product.maxStock ?? product.minStock * 2) - product.currentStock,
           product.minStock - product.currentStock,
           0,
         );
@@ -151,9 +151,10 @@ export function ReportsView() {
     ...categoryStats.map((item) => item.costValue),
   );
 
-  function exportFullReport() {
-    downloadCsv(
-      `reporte-inventario-${new Date().toISOString().slice(0, 10)}.csv`,
+  async function exportFullReport() {
+    await downloadTableWorkbook(
+      `reporte-inventario-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      "Reporte de inventario",
       [
         "Producto",
         "Proveedor",
@@ -253,7 +254,7 @@ export function ReportsView() {
           onClick={exportFullReport}
         >
           <DownloadSimpleIcon size={18} weight="bold" />
-          Descargar inventario
+          Descargar Excel
         </button>
       </section>
 

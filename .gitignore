@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/.artifact-audit/
+/.npm-cache/
 
 # next.js
 /.next/

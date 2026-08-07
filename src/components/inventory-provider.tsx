@@ -12,6 +12,7 @@ import {
 
 import {
   archiveProductAction,
+  clearInventoryDataAction,
   createCategoryAction,
   createMovementReasonAction,
   createProductAction,
@@ -21,6 +22,7 @@ import {
   deleteMovementAction,
   deleteMovementReasonAction,
   deleteProductAction,
+  importInventoryProductsAction,
   recordMovementAction,
   updateOrganizationAction,
   updateMovementAction,
@@ -30,6 +32,7 @@ import {
 import type {
   ActionResult,
   CategoryInput,
+  InventoryImportRow,
   InventoryMovement,
   MovementInput,
   MovementReasonInput,
@@ -112,6 +115,12 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   createWarehouse: (
     input: WarehouseInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  importInventoryProducts: (
+    rows: InventoryImportRow[],
+  ) => Promise<ActionResult<WorkspaceData>>;
+  clearInventoryData: (
+    confirmation: string,
   ) => Promise<ActionResult<WorkspaceData>>;
 }
 
@@ -289,6 +298,18 @@ export function InventoryProvider({
     [runRemote],
   );
 
+  const importInventoryProducts = useCallback(
+    (rows: InventoryImportRow[]) =>
+      runRemote(() => importInventoryProductsAction(rows)),
+    [runRemote],
+  );
+
+  const clearInventoryData = useCallback(
+    (confirmation: string) =>
+      runRemote(() => clearInventoryDataAction(confirmation)),
+    [runRemote],
+  );
+
   const value = useMemo<InventoryContextValue>(
     () => ({
       workspace,
@@ -326,6 +347,8 @@ export function InventoryProvider({
       deleteMovementReason,
       createSupplier,
       createWarehouse,
+      importInventoryProducts,
+      clearInventoryData,
     }),
     [
       archiveProduct,
@@ -334,6 +357,8 @@ export function InventoryProvider({
       createProduct,
       createSupplier,
       createWarehouse,
+      importInventoryProducts,
+      clearInventoryData,
       deleteCategory,
       deleteMovement,
       deleteMovementReason,

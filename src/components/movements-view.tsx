@@ -21,7 +21,7 @@ import {
 
 import { useInventory } from "@/components/inventory-provider";
 import { Modal } from "@/components/ui/modal";
-import { downloadCsv } from "@/lib/csv";
+import { downloadTableWorkbook } from "@/lib/excel";
 import {
   formatCurrency,
   formatDate,
@@ -152,9 +152,10 @@ export function MovementsView() {
     );
   }, [movements]);
 
-  function exportMovements() {
-    downloadCsv(
-      `movimientos-${new Date().toISOString().slice(0, 10)}.csv`,
+  async function exportMovements() {
+    await downloadTableWorkbook(
+      `movimientos-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      "Movimientos",
       [
         "Fecha",
         "Producto",
@@ -308,7 +309,7 @@ export function MovementsView() {
           disabled={filteredMovements.length === 0}
         >
           <DownloadSimpleIcon size={18} weight="bold" />
-          Exportar
+          Exportar Excel
         </button>
         <button
           type="button"

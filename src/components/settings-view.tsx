@@ -5,10 +5,12 @@ import {
   BuildingsIcon,
   CheckCircleIcon,
   DatabaseIcon,
+  FileXlsIcon,
   MapPinIcon,
   PencilSimpleIcon,
   PlusIcon,
   StorefrontIcon,
+  SlidersHorizontalIcon,
   TagIcon,
   TrashIcon,
   UsersThreeIcon,
@@ -18,6 +20,8 @@ import {
 import { useMemo, useState } from "react";
 
 import { useInventory } from "@/components/inventory-provider";
+import { DataManagementPanel } from "@/components/data-management-panel";
+import { PreferencesPanel } from "@/components/preferences-panel";
 import { formatNumber } from "@/lib/format";
 
 const categoryColors = [
@@ -59,6 +63,14 @@ export function SettingsView() {
     }
     return usage;
   }, [workspace.movements]);
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of workspace.products) {
+      if (!product.categoryId) continue;
+      counts.set(product.categoryId, (counts.get(product.categoryId) || 0) + 1);
+    }
+    return counts;
+  }, [workspace.products]);
   const [companyForm, setCompanyForm] = useState({
     name: organization.name,
     taxId: organization.taxId || "",
@@ -271,6 +283,10 @@ export function SettingsView() {
           <BuildingsIcon size={18} />
           Empresa
         </a>
+        <a href="#preferencias">
+          <SlidersHorizontalIcon size={18} />
+          Preferencias
+        </a>
         <a href="#categorias">
           <TagIcon size={18} />
           Categorías
@@ -286,6 +302,10 @@ export function SettingsView() {
         <a href="#almacenes">
           <StorefrontIcon size={18} />
           Almacenes
+        </a>
+        <a href="#datos">
+          <FileXlsIcon size={18} />
+          Datos
         </a>
         <a href="#conexion">
           <DatabaseIcon size={18} />
@@ -426,6 +446,22 @@ export function SettingsView() {
           </form>
         </section>
 
+        <section id="preferencias" className="panel settings-section">
+          <div className="settings-section-heading">
+            <div className="settings-section-icon">
+              <SlidersHorizontalIcon size={22} weight="duotone" />
+            </div>
+            <div>
+              <h2>Preferencias de uso</h2>
+              <p>
+                Ajusta la apariencia y la cantidad de información visible en
+                este dispositivo.
+              </p>
+            </div>
+          </div>
+          <PreferencesPanel />
+        </section>
+
         <section id="categorias" className="panel settings-section">
           <div className="settings-section-heading">
             <div className="settings-section-icon">
@@ -442,9 +478,7 @@ export function SettingsView() {
                 Aún no hay categorías. Puedes crear la primera debajo.
               </p>
             ) : categories.map((category) => {
-              const count = workspace.products.filter(
-                (product) => product.categoryId === category.id,
-              ).length;
+              const count = categoryCounts.get(category.id) || 0;
               return (
                 <div key={category.id}>
                   <span
@@ -863,6 +897,22 @@ export function SettingsView() {
             Las existencias se controlan por almacén y cada movimiento conserva
             la ubicación donde fue registrado.
           </p>
+        </section>
+
+        <section id="datos" className="panel settings-section">
+          <div className="settings-section-heading">
+            <div className="settings-section-icon">
+              <FileXlsIcon size={22} weight="duotone" />
+            </div>
+            <div>
+              <h2>Importación, exportación y seguridad</h2>
+              <p>
+                Trabaja con Excel, crea respaldos completos y controla el
+                borrado del inventario.
+              </p>
+            </div>
+          </div>
+          <DataManagementPanel />
         </section>
 
         <section id="conexion" className="panel settings-section">

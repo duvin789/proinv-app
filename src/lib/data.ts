@@ -78,6 +78,7 @@ interface DbProduct {
   purchase_price: number | string;
   sale_price: number | string;
   min_stock: number | string;
+  max_stock: number | string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -195,7 +196,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     supabase
       .from("products")
       .select(
-        "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, active, created_at, updated_at",
+        "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, max_stock, active, created_at, updated_at",
       )
       .eq("organization_id", organizationId)
       .order("name"),
@@ -318,6 +319,8 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       purchasePrice: fallbackCost,
       salePrice: toNumber(product.sale_price),
       minStock: toNumber(product.min_stock),
+      maxStock:
+        product.max_stock === null ? null : toNumber(product.max_stock),
       currentStock: stock,
       averageCost,
       active: product.active,

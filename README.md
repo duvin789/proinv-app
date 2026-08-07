@@ -7,18 +7,22 @@ Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el
 ## Funciones incluidas
 
 - Panel con valor del inventario, unidades, utilidad proyectada y alertas.
-- Catálogo de productos con búsqueda, filtros, estados y exportación CSV.
+- Catálogo de productos con búsqueda, filtros, estados y exportación Excel.
 - SKU automático cuando el usuario no ingresa uno.
 - Entradas, ventas, ajustes y devoluciones con historial completo.
 - Prevención de stock negativo dentro de una transacción de base de datos.
 - Costo promedio ponderado recalculado con cada entrada.
 - Costo de venta y utilidad bruta calculados con cada salida por venta.
-- Alertas por stock mínimo y sugerencias de reposición.
+- Alertas por stock mínimo, stock máximo opcional y sugerencias de reposición.
 - Reportes de valorización, rentabilidad, ventas e impuesto estimado.
 - Categorías, proveedores, empresa, moneda, impuestos y almacenes.
 - Modo claro y oscuro, diseño adaptable a escritorio, tableta y móvil.
-- Inicio de sesión, roles y aislamiento por empresa mediante Supabase Auth y RLS.
-- Exportaciones CSV compatibles con Excel, sin convertir la interfaz en una hoja de cálculo.
+- Inicio de sesión simplificado, roles y aislamiento por empresa mediante Supabase Auth y RLS.
+- Exportaciones `.xlsx` para productos, movimientos y reportes.
+- Importación validada desde `.xlsx`, con vista previa y consolidación de nombres repetidos.
+- Plantilla Excel y respaldo completo con inventario, movimientos, catálogos y resumen.
+- Preferencias locales de tema, densidad y visibilidad de alertas.
+- Borrado protegido de todos los datos operativos, exclusivo del propietario.
 
 ## Cálculos automáticos
 
@@ -37,7 +41,10 @@ Utilidad por venta = ingreso de la venta - costo de las unidades vendidas
 
 Margen bruto = (precio de venta - costo promedio) / precio de venta x 100
 
-Reposición sugerida = máximo(stock mínimo x 2 - stock actual, 0)
+Reposición sugerida = máximo(objetivo - stock actual, stock mínimo - stock actual, 0)
+
+Objetivo = stock máximo, cuando está configurado;
+           en caso contrario, stock mínimo x 2
 ```
 
 En Supabase, los cambios de stock y sus cálculos se ejecutan dentro de funciones transaccionales con bloqueo de filas. Dos operaciones simultáneas no pueden gastar las mismas unidades.
@@ -46,7 +53,7 @@ En Supabase, los cambios de stock y sus cálculos se ejecutan dentro de funcione
 
 Requisitos:
 
-- Node.js 20.9 o superior.
+- Node.js 24.
 - npm.
 - Un proyecto de Supabase configurado.
 
@@ -57,17 +64,21 @@ npm install
 npm run dev
 ```
 
-Antes de iniciar, crea `.env.local` a partir de `.env.example` y completa las variables públicas de Supabase. Después abre `http://localhost:3000` e inicia sesión o crea una cuenta.
+Antes de iniciar, crea `.env.local` a partir de `.env.example` y completa las variables públicas de Supabase. Después abre `http://localhost:3000` e inicia sesión. Las cuentas y sus permisos se administran desde Supabase.
 
-Almacén LuisGB no incluye almacenamiento local ni datos simulados: productos, movimientos, configuraciones y cálculos se guardan siempre en Supabase.
+Almacén LuisGB no incluye datos simulados: productos, movimientos, configuración de empresa y cálculos se guardan en Supabase. Solo las preferencias visuales del dispositivo usan `localStorage`.
 
 ## Configurar Supabase
 
 1. Crea un proyecto en Supabase.
 2. Abre el editor SQL del proyecto.
-3. Copia y ejecuta, una sola vez, el archivo:
+3. Aplica, en orden, los archivos de `supabase/migrations/`. En un proyecto enlazado puedes ejecutar:
 
-   `supabase/migrations/202607300001_initial_inventory.sql`
+   ```bash
+   npx supabase db push --linked
+   ```
+
+   La migración `202608060006_data_management.sql` agrega `max_stock` y las funciones transaccionales `create_product_with_stock_v2`, `import_inventory_products` y `clear_inventory_data`.
 
 4. En Supabase, copia la URL del proyecto y su clave pública o publishable key.
 5. Duplica `.env.example` como `.env.local` y completa:
@@ -84,7 +95,7 @@ http://localhost:3000/auth/callback
 https://TU-DOMINIO.vercel.app/auth/callback
 ```
 
-Al registrarse una persona, la base de datos crea automáticamente:
+Al crear una persona en Supabase Auth, la base de datos crea automáticamente:
 
 - su perfil;
 - una empresa propia;
@@ -93,6 +104,17 @@ Al registrarse una persona, la base de datos crea automáticamente:
 - cuatro categorías iniciales.
 
 No uses `SUPABASE_SERVICE_ROLE_KEY` en el navegador ni en variables con prefijo `NEXT_PUBLIC_`. Esta aplicación no necesita esa clave.
+
+## Importar y exportar Excel
+
+En **Configuración > Datos** puedes:
+
+- descargar una plantilla `.xlsx` con los encabezados admitidos;
+- importar hasta 1000 filas o 10 MB con vista previa;
+- exportar un respaldo con las hojas Inventario, Movimientos, Catálogos y Resumen;
+- borrar los datos operativos después de escribir `BORRAR TODO`.
+
+La importación reconoce variaciones de mayúsculas, espacios y acentos en los encabezados. Las filas con el mismo nombre y unidad se consolidan sumando existencias; los productos ya existentes con esa misma identidad se omiten. Categorías, proveedores y almacenes faltantes se crean dentro de la misma transacción.
 
 ## Roles y seguridad
 
@@ -140,7 +162,9 @@ Antes de desplegar:
 
 ```bash
 npm run lint
+npx tsc --noEmit
 npm run build
+npm audit
 ```
 
-Ambos comandos deben terminar sin errores.
+Todos los comandos deben terminar sin errores.

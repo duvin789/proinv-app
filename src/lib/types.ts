@@ -74,6 +74,7 @@ export interface Product {
   purchasePrice: number;
   salePrice: number;
   minStock: number;
+  maxStock: number | null;
   currentStock: number;
   averageCost: number;
   active: boolean;
@@ -123,6 +124,7 @@ export interface ProductInput {
   salePrice: number;
   initialStock: number;
   minStock: number;
+  maxStock?: number | null;
 }
 
 export interface ProductUpdateInput {
@@ -135,6 +137,21 @@ export interface ProductUpdateInput {
   purchasePrice: number;
   salePrice: number;
   minStock: number;
+  maxStock?: number | null;
+}
+
+export interface InventoryImportRow {
+  name: string;
+  category?: string;
+  supplier?: string;
+  description?: string;
+  purchasePrice: number;
+  salePrice: number;
+  unit: string;
+  initialStock: number;
+  maxStock?: number | null;
+  minStock: number;
+  warehouse?: string;
 }
 
 export interface MovementInput {
