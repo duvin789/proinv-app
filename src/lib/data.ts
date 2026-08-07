@@ -193,13 +193,29 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       .eq("organization_id", organizationId)
       .order("is_default", { ascending: false })
       .order("name"),
-    supabase
-      .from("products")
-      .select(
-        "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, max_stock, active, created_at, updated_at",
-      )
-      .eq("organization_id", organizationId)
-      .order("name"),
+    (async () => {
+      const productsWithMaxStock = await supabase
+        .from("products")
+        .select(
+          "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, max_stock, active, created_at, updated_at",
+        )
+        .eq("organization_id", organizationId)
+        .order("name");
+
+      const missingMaxStock =
+        productsWithMaxStock.error?.code === "42703" &&
+        productsWithMaxStock.error.message.includes("max_stock");
+
+      if (!missingMaxStock) return productsWithMaxStock;
+
+      return supabase
+        .from("products")
+        .select(
+          "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, active, created_at, updated_at",
+        )
+        .eq("organization_id", organizationId)
+        .order("name");
+    })(),
     supabase
       .from("inventory_balances")
       .select("product_id, current_stock, average_cost")
@@ -319,8 +335,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       purchasePrice: fallbackCost,
       salePrice: toNumber(product.sale_price),
       minStock: toNumber(product.min_stock),
-      maxStock:
-        product.max_stock === null ? null : toNumber(product.max_stock),
+      maxStock: product.max_stock == null ? null : toNumber(product.max_stock),
       currentStock: stock,
       averageCost,
       active: product.active,
