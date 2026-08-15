@@ -1,6 +1,10 @@
 import type { Worksheet } from "exceljs";
 
-import type { InventoryImportRow, WorkspaceData } from "@/lib/types";
+import type {
+  InventoryBalance,
+  InventoryImportRow,
+  WorkspaceData,
+} from "@/lib/types";
 import {
   calculateWorkspaceMetrics,
   getStockStatus,
@@ -485,30 +489,41 @@ export async function parseInventoryWorkbook(
       });
       continue;
     }
-    if (existing.initialStock !== undefined || row.initialStock !== undefined) {
-      existing.initialStock =
-        (existing.initialStock ?? 0) + (row.initialStock ?? 0);
+    const merged: InventoryImportRow = {
+      ...existing,
+      name: row.name,
+      sku: row.sku ?? existing.sku,
+      barcode: row.barcode ?? existing.barcode,
+      category: row.category ?? existing.category,
+      supplier: row.supplier ?? existing.supplier,
+      description: row.description ?? existing.description,
+      purchasePrice: row.purchasePrice ?? existing.purchasePrice,
+      salePrice: row.salePrice ?? existing.salePrice,
+      unit: row.unit ?? existing.unit,
+      initialStock:
+        existing.initialStock !== undefined || row.initialStock !== undefined
+          ? (existing.initialStock ?? 0) + (row.initialStock ?? 0)
+          : undefined,
+      minStock: row.minStock ?? existing.minStock,
+      maxStock:
+        row.maxStock !== undefined ? row.maxStock : existing.maxStock,
+      warehouse: row.warehouse ?? existing.warehouse,
+    };
+    if (
+      merged.maxStock !== undefined &&
+      merged.maxStock !== null &&
+      merged.maxStock < (merged.minStock ?? 0)
+    ) {
+      issues.push({
+        row: sourceRow,
+        message:
+          "al consolidar la fila, el stock máximo queda por debajo del mínimo; completa ambos valores de forma compatible",
+      });
+      continue;
     }
-    existing.sku ||= row.sku;
-    existing.barcode ||= row.barcode;
+    consolidated.set(key, merged);
     if (normalizedSku) identityBySku.set(normalizedSku, key);
     if (normalizedBarcode) identityByBarcode.set(normalizedBarcode, key);
-    existing.purchasePrice ??= row.purchasePrice;
-    existing.salePrice ??= row.salePrice;
-    existing.description ||= row.description;
-    if (existing.minStock !== undefined || row.minStock !== undefined) {
-      existing.minStock = Math.max(
-        existing.minStock ?? 0,
-        row.minStock ?? 0,
-      );
-    }
-    if (existing.maxStock !== undefined || row.maxStock !== undefined) {
-      existing.maxStock = Math.max(
-        existing.maxStock || 0,
-        row.maxStock || 0,
-        existing.minStock || 0,
-      );
-    }
     consolidatedRows += 1;
   }
 
@@ -553,7 +568,10 @@ export async function downloadInventoryTemplate() {
       "Coincidencias",
       "La vista previa las identifica por nombre y unidad, SKU o código de barras. Puedes omitirlas o actualizar solo las celdas llenas; el stock existente nunca cambia.",
     ],
-    ["Filas repetidas", "Las filas idénticas dentro del archivo se consolidan y suman su stock."],
+    [
+      "Filas repetidas",
+      "Se suman sus existencias. Los demás valores no vacíos de la última fila prevalecen, sin borrar datos con celdas vacías.",
+    ],
     ["Límite", "1000 filas y 10 MB por importación."],
   ]);
   instructions.columns = [{ width: 24 }, { width: 78 }];
@@ -565,7 +583,10 @@ export async function downloadInventoryTemplate() {
   downloadBuffer("plantilla-importacion-kadmiel.xlsx", output as ArrayBuffer);
 }
 
-export async function createWorkspaceWorkbookBuffer(workspace: WorkspaceData) {
+export async function createWorkspaceWorkbookBuffer(
+  workspace: WorkspaceData,
+  inventoryBalances: InventoryBalance[],
+) {
   const workbook = await newWorkbook();
   const categoryById = new Map(workspace.categories.map((item) => [item.id, item.name]));
   const supplierById = new Map(workspace.suppliers.map((item) => [item.id, item.name]));
@@ -585,7 +606,11 @@ export async function createWorkspaceWorkbookBuffer(workspace: WorkspaceData) {
     "";
 
   const inventory = workbook.addWorksheet("Inventario");
-  inventory.addRow([...inventoryHeaders, "ESTADO"]);
+  inventory.addRow([
+    ...inventoryHeaders,
+    "RUTA PRIVADA DE IMAGEN",
+    "ESTADO",
+  ]);
   for (const product of workspace.products) {
     inventory.addRow([
       product.name,
@@ -601,12 +626,13 @@ export async function createWorkspaceWorkbookBuffer(workspace: WorkspaceData) {
       product.maxStock ?? "",
       product.minStock,
       latestWarehouseByProduct.get(product.id) || defaultWarehouse,
+      product.imagePath || "",
       product.active ? getStockStatus(product) : "archivado",
     ]);
   }
   styleWorksheet(
     inventory,
-    [38, 18, 22, 18, 24, 32, 17, 17, 18, 15, 15, 15, 22, 15],
+    [38, 18, 22, 18, 24, 32, 17, 17, 18, 15, 15, 15, 22, 54, 15],
   );
   inventory.getColumn(2).numFmt = "@";
   inventory.getColumn(3).numFmt = "@";
@@ -615,6 +641,72 @@ export async function createWorkspaceWorkbookBuffer(workspace: WorkspaceData) {
   for (const column of [10, 11, 12]) {
     inventory.getColumn(column).numFmt = "#,##0.000";
   }
+
+  const productById = new Map(
+    workspace.products.map((product) => [product.id, product]),
+  );
+  const warehouseDetailsById = new Map(
+    workspace.warehouses.map((warehouse) => [warehouse.id, warehouse]),
+  );
+  const balanceSheet = workbook.addWorksheet("Existencias por almacén");
+  balanceSheet.addRow([
+    "ID DE PRODUCTO",
+    "PRODUCTO",
+    "SKU",
+    "CÓDIGO DE BARRAS",
+    "ID DE ALMACÉN",
+    "ALMACÉN",
+    "UBICACIÓN DEL ALMACÉN",
+    "UNIDAD DE MEDIDA",
+    "STOCK ACTUAL",
+    "COSTO PROMEDIO",
+    "VALOR DEL INVENTARIO",
+    "ÚLTIMA ACTUALIZACIÓN",
+  ]);
+  const sortedBalances = [...inventoryBalances].sort((left, right) => {
+    const leftProduct = productById.get(left.productId)?.name || "";
+    const rightProduct = productById.get(right.productId)?.name || "";
+    const productOrder = leftProduct.localeCompare(rightProduct, "es");
+    if (productOrder !== 0) return productOrder;
+
+    const leftWarehouse =
+      warehouseDetailsById.get(left.warehouseId)?.name || "";
+    const rightWarehouse =
+      warehouseDetailsById.get(right.warehouseId)?.name || "";
+    const warehouseOrder = leftWarehouse.localeCompare(rightWarehouse, "es");
+    if (warehouseOrder !== 0) return warehouseOrder;
+    return `${left.productId}|${left.warehouseId}`.localeCompare(
+      `${right.productId}|${right.warehouseId}`,
+    );
+  });
+  for (const balance of sortedBalances) {
+    const product = productById.get(balance.productId);
+    const warehouse = warehouseDetailsById.get(balance.warehouseId);
+    balanceSheet.addRow([
+      balance.productId,
+      product?.name || "Producto no disponible",
+      product?.sku || "",
+      product?.barcode || "",
+      balance.warehouseId,
+      warehouse?.name || "Almacén no disponible",
+      warehouse?.location || "",
+      product?.unit || "",
+      balance.currentStock,
+      balance.averageCost,
+      balance.currentStock * balance.averageCost,
+      new Date(balance.updatedAt),
+    ]);
+  }
+  styleWorksheet(
+    balanceSheet,
+    [38, 38, 18, 22, 38, 26, 34, 18, 16, 18, 22, 22],
+  );
+  balanceSheet.getColumn(3).numFmt = "@";
+  balanceSheet.getColumn(4).numFmt = "@";
+  balanceSheet.getColumn(9).numFmt = "#,##0.000";
+  balanceSheet.getColumn(10).numFmt = "#,##0.0000";
+  balanceSheet.getColumn(11).numFmt = "#,##0.00";
+  balanceSheet.getColumn(12).numFmt = "yyyy-mm-dd hh:mm";
 
   const movements = workbook.addWorksheet("Movimientos");
   movements.addRow([...movementWorkbookHeaders]);
@@ -649,18 +741,29 @@ export async function createWorkspaceWorkbookBuffer(workspace: WorkspaceData) {
     ["Ingreso potencial", metrics.potentialRevenue],
     ["Productos con stock bajo", metrics.lowStock],
     ["Productos sin stock", metrics.outOfStock],
+    ["Tipo de archivo", "Exportación completa de datos operativos en Excel"],
+    [
+      "Imágenes de productos",
+      "Incluye la ruta privada de almacenamiento, pero no los archivos binarios. Este Excel no restaura las imágenes por sí solo.",
+    ],
   ]);
-  styleWorksheet(summary, [34, 24]);
+  styleWorksheet(summary, [34, 90]);
   summary.getColumn(2).numFmt = "#,##0.00";
 
   const output = await workbook.xlsx.writeBuffer();
   return output as ArrayBuffer;
 }
 
-export async function downloadWorkspaceWorkbook(workspace: WorkspaceData) {
-  const output = await createWorkspaceWorkbookBuffer(workspace);
+export async function downloadWorkspaceWorkbook(
+  workspace: WorkspaceData,
+  inventoryBalances: InventoryBalance[],
+) {
+  const output = await createWorkspaceWorkbookBuffer(
+    workspace,
+    inventoryBalances,
+  );
   downloadBuffer(
-    `respaldo-kadmiel-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    `exportacion-datos-kadmiel-${new Date().toISOString().slice(0, 10)}.xlsx`,
     output,
   );
 }
@@ -674,13 +777,15 @@ export async function downloadCompleteWorkspaceWorkbook() {
     const body = (await response.json().catch(() => null)) as {
       message?: string;
     } | null;
-    throw new Error(body?.message || "No fue posible generar el respaldo completo.");
+    throw new Error(
+      body?.message || "No fue posible generar la exportación completa.",
+    );
   }
 
   const disposition = response.headers.get("content-disposition") || "";
   const filename =
     disposition.match(/filename="?([^";]+)"?/i)?.[1] ||
-    `respaldo-kadmiel-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    `exportacion-datos-kadmiel-${new Date().toISOString().slice(0, 10)}.xlsx`;
   downloadBuffer(filename, await response.arrayBuffer());
 }
 

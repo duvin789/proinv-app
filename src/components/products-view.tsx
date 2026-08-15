@@ -316,15 +316,15 @@ Escribe ELIMINAR para confirmar.`,
               <table className="data-table products-table">
                 <thead>
                   <tr>
-                    <th>Producto</th>
-                    <th>Categoría</th>
-                    <th className="align-right">Stock</th>
-                    <th className="align-right">Costo prom.</th>
-                    <th className="align-right">Precio venta</th>
-                    <th className="align-right">Margen</th>
-                    <th className="align-right">Valor</th>
-                    <th>Estado</th>
-                    <th>
+                    <th scope="col">Producto</th>
+                    <th scope="col">Categoría</th>
+                    <th scope="col" className="align-right">Stock</th>
+                    <th scope="col" className="align-right">Costo prom.</th>
+                    <th scope="col" className="align-right">Precio venta</th>
+                    <th scope="col" className="align-right">Margen</th>
+                    <th scope="col" className="align-right">Valor</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
@@ -337,15 +337,15 @@ Escribe ELIMINAR para confirmar.`,
                     const status = getStockStatus(product);
                     return (
                       <tr key={product.id}>
-                        <td>
+                        <td data-label="Producto">
                           <div className="table-product">
                             {product.imageUrl ? (
                               <Image
                                 className="product-monogram product-thumbnail"
                                 src={product.imageUrl}
                                 alt=""
-                                width={34}
-                                height={34}
+                                width={56}
+                                height={56}
                                 unoptimized
                               />
                             ) : (
@@ -371,6 +371,11 @@ Escribe ELIMINAR para confirmar.`,
                                 {supplierMap.get(product.supplierId || "")?.name ||
                                   "Sin proveedor"}
                               </span>
+                              {product.barcode ? (
+                                <span className="product-barcode">
+                                  Código: {product.barcode}
+                                </span>
+                              ) : null}
                             </div>
                           </div>
                         </td>
@@ -437,13 +442,13 @@ Escribe ELIMINAR para confirmar.`,
                             {statusLabels[status]}
                           </span>
                         </td>
-                        <td>
+                        <td data-label="Acciones">
                           <div className="table-actions">
                             {product.active ? (
                               <button
                                 type="button"
                                 className="icon-button"
-                              onClick={() => openMovementDialog(product)}
+                                onClick={() => openMovementDialog(product)}
                                 disabled={!canOperate || isMutating}
                                 aria-label={`Registrar movimiento de ${product.name}`}
                                 title="Registrar movimiento"

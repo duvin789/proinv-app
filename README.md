@@ -21,7 +21,7 @@ Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el
 - Inicio de sesión simplificado, roles y aislamiento por empresa mediante Supabase Auth y RLS.
 - Exportaciones `.xlsx` para productos, movimientos y reportes.
 - Importación validada desde `.xlsx`, con vista previa, detección de conflictos y decisión explícita entre omitir o actualizar datos comerciales sin modificar el stock existente.
-- Plantilla Excel y respaldo completo con inventario, movimientos, catálogos y resumen.
+- Plantilla Excel y exportación completa de datos operativos con inventario, existencias por almacén, movimientos, catálogos y resumen.
 - Preferencias locales de tema, densidad y visibilidad de alertas.
 - Borrado protegido de todos los datos operativos, disponible para propietarios y administradores.
 
@@ -112,16 +112,16 @@ En **Configuración > Datos** puedes:
 
 - descargar una plantilla `.xlsx` con los encabezados admitidos;
 - importar hasta 1000 filas o 10 MB con vista previa;
-- exportar un respaldo completo con las hojas Inventario, Movimientos, Catálogos y Resumen; el historial de movimientos se pagina internamente para incluirlo completo;
+- exportar todos los datos operativos del inventario en Excel con las hojas Inventario, Existencias por almacén, Movimientos, Catálogos y Resumen; tanto los saldos por almacén como el historial de movimientos se incluyen completos;
 - borrar los datos operativos después de escribir `BORRAR TODO`.
 
-La importación reconoce variaciones de mayúsculas, espacios y acentos en los encabezados. Las filas repetidas dentro del mismo archivo se consolidan. Si un producto ya existe con el mismo nombre y unidad, la vista previa obliga a elegir entre omitirlo o actualizar descripción, categoría y precios; ninguna de las dos opciones altera silenciosamente su stock. Categorías, proveedores y almacenes faltantes se crean dentro de la misma transacción.
+La importación reconoce variaciones de mayúsculas, espacios y acentos en los encabezados. Las filas repetidas dentro del mismo archivo se consolidan: sus existencias se suman y los demás valores no vacíos de la última fila prevalecen, incluyendo categoría, proveedor, unidad y almacén. Si un producto ya existe con el mismo nombre y unidad, la vista previa obliga a elegir entre omitirlo o actualizar descripción, categoría y precios; ninguna de las dos opciones altera silenciosamente su stock. Categorías, proveedores y almacenes faltantes se crean dentro de la misma transacción.
 
 ## Imágenes privadas de productos
 
-Las imágenes se guardan en el bucket privado `product-images` de Supabase Storage. La tabla de productos conserva únicamente la ruta privada y la aplicación genera una URL firmada de corta duración para mostrarla. Se admiten JPG, PNG y WebP de hasta 5 MB.
+Las imágenes se guardan en el bucket privado `product-images` de Supabase Storage. La tabla de productos conserva únicamente la ruta privada y la aplicación las entrega mediante una ruta interna autenticada, sin incluir enlaces temporales en los datos del panel. Se admiten JPG, PNG y WebP de hasta 5 MB.
 
-Las políticas de Storage aíslan los archivos por empresa. Las personas con acceso a la empresa pueden verlos, mientras que propietarios, administradores y operadores pueden cargarlos, reemplazarlos o eliminarlos. El respaldo Excel no expone URLs firmadas ni datos de acceso.
+Las políticas de Storage aíslan los archivos por empresa. Las personas con acceso a la empresa pueden verlos, mientras que propietarios, administradores y operadores pueden cargarlos, reemplazarlos o eliminarlos. La exportación Excel incluye la ruta privada de cada imagen como metadato, pero no expone URLs firmadas ni datos de acceso. Los archivos binarios de las imágenes no se incrustan en el libro, por lo que este Excel no constituye por sí solo una copia restaurable de esas imágenes.
 
 ## Roles y seguridad
 

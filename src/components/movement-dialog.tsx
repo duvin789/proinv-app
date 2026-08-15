@@ -194,7 +194,6 @@ export function MovementDialog() {
                 onChange={(event) => selectProduct(event.target.value)}
                 required
                 disabled={isEditing}
-                autoFocus={!isEditing}
               >
                 <option value="">Selecciona un producto</option>
                 {workspace.products
@@ -281,7 +280,6 @@ export function MovementDialog() {
                   updateField("quantity", event.target.value)
                 }
                 required
-                autoFocus={isEditing}
               />
             </label>
             {form.type === "sale" ? (

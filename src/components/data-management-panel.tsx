@@ -50,53 +50,96 @@ export function DataManagementPanel() {
   const canManage =
     workspace.viewer.role === "owner" || workspace.viewer.role === "admin";
   const canDeleteAll = canManage;
-  const previewConflicts = useMemo(() => {
-    if (!preview) return [];
-    const existingByKey = new Map(
-      workspace.products.map((product) => [
-        inventoryConflictKey(product),
-        product,
-      ]),
-    );
+  const previewMatchAnalysis = useMemo(() => {
+    if (!preview) return { conflicts: [], ambiguities: [] };
+
+    const addToIndex = (
+      index: Map<string, Product[]>,
+      key: string,
+      product: Product,
+    ) => {
+      if (!key) return;
+      index.set(key, [...(index.get(key) || []), product]);
+    };
+    const existingByKey = new Map<string, Product[]>();
     const existingByName = new Map<string, Product[]>();
+    const existingBySku = new Map<string, Product[]>();
+    const existingByBarcode = new Map<string, Product[]>();
+
     for (const product of workspace.products) {
-      const key = inventoryNameKey(product);
-      existingByName.set(key, [
-        ...(existingByName.get(key) || []),
+      addToIndex(existingByKey, inventoryConflictKey(product), product);
+      addToIndex(existingByName, inventoryNameKey(product), product);
+      addToIndex(existingBySku, product.sku.trim().toUpperCase(), product);
+      addToIndex(
+        existingByBarcode,
+        product.barcode?.trim() || "",
         product,
-      ]);
+      );
     }
-    const existingBySku = new Map(
-      workspace.products.map((product) => [
-        product.sku.trim().toUpperCase(),
-        product,
-      ]),
-    );
-    const existingByBarcode = new Map(
-      workspace.products.flatMap((product) =>
-        product.barcode ? [[product.barcode.trim(), product] as const] : [],
-      ),
-    );
-    return preview.rows.flatMap((row, index) => {
-      const product =
-        (row.unit
+
+    const conflicts: Array<{
+      index: number;
+      row: (typeof preview.rows)[number];
+      product: Product;
+    }> = [];
+    const ambiguities: Array<{
+      index: number;
+      row: (typeof preview.rows)[number];
+      products: Product[];
+    }> = [];
+
+    preview.rows.forEach((row, index) => {
+      const candidates = new Map<string, Product>();
+      const addCandidates = (products: Product[] | undefined) => {
+        for (const product of products || []) {
+          candidates.set(product.id, product);
+        }
+      };
+
+      addCandidates(
+        row.unit
           ? existingByKey.get(inventoryConflictKey(row))
-          : existingByName.get(inventoryNameKey(row))?.[0]) ||
-        (row.sku ? existingBySku.get(row.sku.trim().toUpperCase()) : null) ||
-        (row.barcode
-          ? existingByBarcode.get(row.barcode.trim())
-          : null);
-      return product ? [{ index, row, product }] : [];
+          : existingByName.get(inventoryNameKey(row)),
+      );
+      if (row.sku) {
+        addCandidates(existingBySku.get(row.sku.trim().toUpperCase()));
+      }
+      if (row.barcode) {
+        addCandidates(existingByBarcode.get(row.barcode.trim()));
+      }
+
+      const products = [...candidates.values()];
+      if (products.length === 1) {
+        conflicts.push({ index, row, product: products[0] });
+      } else if (products.length > 1) {
+        ambiguities.push({ index, row, products });
+      }
     });
+
+    return { conflicts, ambiguities };
   }, [preview, workspace.products]);
+  const previewConflicts = previewMatchAnalysis.conflicts;
+  const previewAmbiguities = previewMatchAnalysis.ambiguities;
   const conflictIndexes = useMemo(
     () => new Set(previewConflicts.map((conflict) => conflict.index)),
     [previewConflicts],
   );
+  const ambiguityIndexes = useMemo(
+    () => new Set(previewAmbiguities.map((ambiguity) => ambiguity.index)),
+    [previewAmbiguities],
+  );
+  const importableRows = useMemo(
+    () =>
+      preview?.rows.filter((_, index) => !ambiguityIndexes.has(index)) || [],
+    [ambiguityIndexes, preview],
+  );
   const newRows = useMemo(
     () =>
-      preview?.rows.filter((_, index) => !conflictIndexes.has(index)) || [],
-    [conflictIndexes, preview],
+      preview?.rows.filter(
+        (_, index) =>
+          !conflictIndexes.has(index) && !ambiguityIndexes.has(index),
+      ) || [],
+    [ambiguityIndexes, conflictIndexes, preview],
   );
 
   async function selectFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -130,7 +173,7 @@ export function DataManagementPanel() {
       setError(
         exportError instanceof Error
           ? exportError.message
-          : "No fue posible generar el respaldo.",
+          : "No fue posible generar la exportación.",
       );
     } finally {
       setBusyTask(null);
@@ -163,6 +206,12 @@ export function DataManagementPanel() {
 
   async function confirmImport() {
     if (!preview?.rows.length) return;
+    if (importableRows.length === 0) {
+      setError(
+        "No hay productos que se puedan importar. Corrige los conflictos ambiguos del archivo.",
+      );
+      return;
+    }
     if (previewConflicts.length > 0 && !conflictPolicy) {
       setError("Elige qué hacer con los productos que ya existen.");
       return;
@@ -177,7 +226,7 @@ export function DataManagementPanel() {
       );
       return;
     }
-    const rowsToImport = policy === "update" ? preview.rows : newRows;
+    const rowsToImport = policy === "update" ? importableRows : newRows;
     const result = await importInventoryProducts(rowsToImport, policy);
     if (result.ok) closePreview();
     else setError(result.message);
@@ -199,10 +248,10 @@ export function DataManagementPanel() {
             <FileArrowDownIcon size={22} weight="duotone" />
           </span>
           <div>
-            <strong>Respaldo completo</strong>
+            <strong>Exportación completa de datos</strong>
             <p>
-              Exporta productos, movimientos, catálogos y un resumen en un
-              solo archivo Excel.
+              Exporta productos, existencias por almacén, movimientos,
+              catálogos y un resumen en un solo archivo Excel.
             </p>
           </div>
           <button
@@ -213,7 +262,7 @@ export function DataManagementPanel() {
             title={
               canManage
                 ? undefined
-                : "Solo un administrador puede exportar el respaldo completo"
+                : "Solo un administrador puede exportar todos los datos"
             }
           >
             <DownloadSimpleIcon size={18} weight="bold" />
@@ -279,7 +328,9 @@ export function DataManagementPanel() {
           <strong>Borrar todos los datos</strong>
           <p>
             Elimina productos, movimientos y catálogos. Conserva la cuenta, la
-            empresa y el almacén principal.
+            empresa y el almacén principal. El Excel conserva datos y rutas,
+            pero no copia los archivos de imagen; guarda las fotos importantes
+            por separado antes de borrar.
           </p>
         </div>
         <button
@@ -321,7 +372,9 @@ export function DataManagementPanel() {
               <div>
                 <WarningIcon size={20} weight="duotone" />
                 <span>Con observaciones</span>
-                <strong>{preview.issues.length}</strong>
+                <strong>
+                  {preview.issues.length + previewAmbiguities.length}
+                </strong>
               </div>
               <div>
                 <FileXlsIcon size={20} weight="duotone" />
@@ -353,28 +406,57 @@ export function DataManagementPanel() {
                 <tbody>
                   {preview.rows.slice(0, 8).map((row, index) => {
                     const isConflict = conflictIndexes.has(index);
+                    const isAmbiguous = ambiguityIndexes.has(index);
                     return (
                       <tr key={`${row.name}-${row.supplier || ""}-${index}`}>
                         <td>{row.name}</td>
                         <td>
                           {row.sku ||
                             row.barcode ||
-                            (isConflict ? "Sin cambio" : "Sin código")}
+                            (isConflict
+                              ? "Sin cambio"
+                              : isAmbiguous
+                                ? "Revisar archivo"
+                                : "Sin código")}
                         </td>
                         <td>
                           {row.supplier ||
-                            (isConflict ? "Sin cambio" : "Sin proveedor")}
+                            (isConflict
+                              ? "Sin cambio"
+                              : isAmbiguous
+                                ? "Revisar archivo"
+                                : "Sin proveedor")}
                         </td>
                         <td>
-                          {row.unit || (isConflict ? "Sin cambio" : "unidad")}
+                          {row.unit ||
+                            (isConflict
+                              ? "Sin cambio"
+                              : isAmbiguous
+                                ? "Revisar archivo"
+                                : "unidad")}
                         </td>
                         <td className="align-right">
-                          {isConflict ? "No cambia" : (row.initialStock ?? 0)}
+                          {isConflict
+                            ? "No cambia"
+                            : isAmbiguous
+                              ? "No se importa"
+                              : (row.initialStock ?? 0)}
                         </td>
                         <td className="align-right">
-                          {row.minStock ?? (isConflict ? "Sin cambio" : 0)}
+                          {row.minStock ??
+                            (isConflict
+                              ? "Sin cambio"
+                              : isAmbiguous
+                                ? "Revisar"
+                                : 0)}
                         </td>
-                        <td>{isConflict ? "Ya existe" : "Producto nuevo"}</td>
+                        <td>
+                          {isAmbiguous
+                            ? "Conflicto ambiguo"
+                            : isConflict
+                              ? "Ya existe"
+                              : "Producto nuevo"}
+                        </td>
                       </tr>
                     );
                   })}
@@ -418,6 +500,36 @@ export function DataManagementPanel() {
               </label>
             ) : null}
 
+            {previewAmbiguities.length > 0 ? (
+              <div className="import-issues" role="alert">
+                <strong>Conflictos ambiguos que no se importarán</strong>
+                <p>
+                  Estos datos apuntan a más de un producto existente. Los
+                  excluiremos de esta importación para proteger el inventario;
+                  corrige su nombre, unidad, SKU o código de barras en el Excel.
+                </p>
+                <ul>
+                  {previewAmbiguities.slice(0, 6).map((ambiguity) => (
+                    <li key={`${ambiguity.index}-${ambiguity.row.name}`}>
+                      {ambiguity.row.name}: coincide con{" "}
+                      {ambiguity.products
+                        .map(
+                          (product) =>
+                            `${product.name} (${product.sku || product.barcode || product.unit})`,
+                        )
+                        .join(", ")}
+                      .
+                    </li>
+                  ))}
+                </ul>
+                {previewAmbiguities.length > 6 ? (
+                  <small>
+                    Y {previewAmbiguities.length - 6} conflictos ambiguos más.
+                  </small>
+                ) : null}
+              </div>
+            ) : null}
+
             {preview.issues.length ? (
               <div className="import-issues" role="status">
                 <strong>Filas que no se importarán</strong>
@@ -446,7 +558,7 @@ export function DataManagementPanel() {
                 onClick={confirmImport}
                 disabled={
                   isMutating ||
-                  preview.rows.length === 0 ||
+                  importableRows.length === 0 ||
                   (previewConflicts.length > 0 &&
                     (!conflictPolicy ||
                       (conflictPolicy === "skip" && newRows.length === 0)))
@@ -456,7 +568,7 @@ export function DataManagementPanel() {
                 {isMutating
                   ? "Importando..."
                   : conflictPolicy === "update"
-                    ? `Crear o actualizar ${preview.rows.length} productos`
+                    ? `Crear o actualizar ${importableRows.length} productos`
                     : `Importar ${newRows.length} productos nuevos`}
               </button>
             </footer>
@@ -470,7 +582,7 @@ export function DataManagementPanel() {
           if (!isMutating) setDeleteOpen(false);
         }}
         title="Borrar todos los datos"
-        description="Esta acción no se puede deshacer. Exporta un respaldo antes de continuar."
+        description="Esta acción no se puede deshacer. Exporta los datos y guarda las imágenes importantes antes de continuar."
         size="sm"
       >
         <div className="delete-all-form">

@@ -88,6 +88,15 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface InventoryBalance {
+  organizationId: string;
+  productId: string;
+  warehouseId: string;
+  currentStock: number;
+  averageCost: number;
+  updatedAt: string;
+}
+
 export interface InventoryMovement {
   id: string;
   organizationId: string;

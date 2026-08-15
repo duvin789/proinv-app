@@ -87,6 +87,7 @@ export function LoginView({ configured }: { configured: boolean }) {
           <label className="field">
             <span>Correo electrónico</span>
             <input
+              name="email"
               type="email"
               value={form.email}
               onChange={(event) =>
@@ -97,6 +98,7 @@ export function LoginView({ configured }: { configured: boolean }) {
               }
               placeholder="correo@empresa.com"
               autoComplete="email"
+              spellCheck={false}
               disabled={!configured || pending}
               required
             />
@@ -106,6 +108,7 @@ export function LoginView({ configured }: { configured: boolean }) {
             <div className="password-field">
               <LockKeyIcon size={18} />
               <input
+                name="password"
                 type={showPassword ? "text" : "password"}
                 value={form.password}
                 onChange={(event) =>
@@ -123,6 +126,9 @@ export function LoginView({ configured }: { configured: boolean }) {
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
                 aria-label={
+                  showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                title={
                   showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
                 }
                 disabled={!configured || pending}
@@ -147,7 +153,7 @@ export function LoginView({ configured }: { configured: boolean }) {
             className="button button-primary login-submit"
             disabled={pending || !configured}
           >
-            {pending ? "Verificando..." : "Entrar"}
+            {pending ? "Verificando…" : "Entrar"}
             {!pending ? <ArrowRightIcon size={18} weight="bold" /> : null}
           </button>
         </form>

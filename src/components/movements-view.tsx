@@ -315,16 +315,19 @@ export function MovementsView() {
           <>
             <div className="data-table-wrap movements-table-wrap">
               <table className="data-table movements-table">
-                <thead>
+                <caption className="sr-only">
+                  Historial de movimientos de inventario
+                </caption>
+                <thead className="movements-table-head">
                   <tr>
-                    <th>Fecha</th>
-                    <th>Producto</th>
-                    <th>Operación y motivo</th>
-                    <th>Almacén</th>
-                    <th className="align-right">Cantidad</th>
-                    <th className="align-right">Stock</th>
-                    <th className="align-right">Importe</th>
-                    <th className="align-right">Acciones</th>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Producto</th>
+                    <th scope="col">Operación y motivo</th>
+                    <th scope="col">Almacén</th>
+                    <th scope="col" className="align-right">Cantidad</th>
+                    <th scope="col" className="align-right">Stock</th>
+                    <th scope="col" className="align-right">Importe</th>
+                    <th scope="col" className="align-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -373,6 +376,7 @@ export function MovementsView() {
                   onClick={() => setPage(Math.max(1, safePage - 1))}
                   disabled={safePage === 1}
                   aria-label="Página anterior"
+                  title="Página anterior"
                 >
                   <CaretLeftIcon size={18} weight="bold" />
                 </button>
@@ -385,6 +389,7 @@ export function MovementsView() {
                   onClick={() => setPage(Math.min(pageCount, safePage + 1))}
                   disabled={safePage === pageCount}
                   aria-label="Página siguiente"
+                  title="Página siguiente"
                 >
                   <CaretRightIcon size={18} weight="bold" />
                 </button>

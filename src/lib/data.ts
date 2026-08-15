@@ -129,8 +129,6 @@ type SupabaseServerClient = Awaited<
 >;
 
 const databasePageSize = 1000;
-const signedImageChunkSize = 100;
-const signedImageConcurrency = 5;
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -340,45 +338,6 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
   const dbBalances = (balancesResult.data ?? []) as unknown as DbBalance[];
   const dbMovements = (movementsResult.data ?? []) as unknown as DbMovement[];
 
-  const imagePaths = Array.from(
-    new Set(
-      dbProducts
-        .map((product) => product.image_path)
-        .filter((path): path is string => Boolean(path)),
-    ),
-  );
-  const imageUrlMap = new Map<string, string>();
-  if (imagePaths.length > 0) {
-    const imageChunks: string[][] = [];
-    for (let index = 0; index < imagePaths.length; index += signedImageChunkSize) {
-      imageChunks.push(imagePaths.slice(index, index + signedImageChunkSize));
-    }
-
-    for (
-      let index = 0;
-      index < imageChunks.length;
-      index += signedImageConcurrency
-    ) {
-      const signedImageResults = await Promise.all(
-        imageChunks
-          .slice(index, index + signedImageConcurrency)
-          .map((paths) =>
-            supabase.storage
-              .from("product-images")
-              .createSignedUrls(paths, 60 * 60 * 6),
-          ),
-      );
-
-      for (const result of signedImageResults) {
-        for (const signedImage of result.data ?? []) {
-          if (signedImage.path && signedImage.signedUrl) {
-            imageUrlMap.set(signedImage.path, signedImage.signedUrl);
-          }
-        }
-      }
-    }
-  }
-
   const balanceMap = new Map<
     string,
     { stock: number; inventoryValue: number }
@@ -459,7 +418,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       description: product.description,
       imagePath: product.image_path ?? null,
       imageUrl: product.image_path
-        ? imageUrlMap.get(product.image_path) ?? null
+        ? `/api/product-images/${encodeURIComponent(product.id)}?size=thumb`
         : null,
       unit: product.unit,
       purchasePrice: fallbackCost,

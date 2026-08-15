@@ -1,12 +1,29 @@
 import { loadWorkspaceData } from "@/lib/data";
 import { createWorkspaceWorkbookBuffer } from "@/lib/excel";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { InventoryMovement, MovementType } from "@/lib/types";
+import type {
+  InventoryBalance,
+  InventoryMovement,
+  MovementType,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const movementPageSize = 1000;
+const exportPageSize = 1000;
+
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
+
+interface DbBalanceExport {
+  organization_id: string;
+  product_id: string;
+  warehouse_id: string;
+  current_stock: number | string;
+  average_cost: number | string;
+  updated_at: string;
+}
 
 interface DbMovementExport {
   id: string;
@@ -58,8 +75,21 @@ function mapMovement(movement: DbMovementExport): InventoryMovement {
   };
 }
 
-async function loadAllMovements(organizationId: string) {
-  const supabase = await createSupabaseServerClient();
+function mapBalance(balance: DbBalanceExport): InventoryBalance {
+  return {
+    organizationId: balance.organization_id,
+    productId: balance.product_id,
+    warehouseId: balance.warehouse_id,
+    currentStock: toNumber(balance.current_stock),
+    averageCost: toNumber(balance.average_cost),
+    updatedAt: balance.updated_at,
+  };
+}
+
+async function loadAllMovements(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
   const movements: InventoryMovement[] = [];
   let from = 0;
 
@@ -72,7 +102,7 @@ async function loadAllMovements(organizationId: string) {
       .eq("organization_id", organizationId)
       .order("occurred_at", { ascending: false })
       .order("id", { ascending: false })
-      .range(from, from + movementPageSize - 1);
+      .range(from, from + exportPageSize - 1);
 
     if (error) {
       throw new Error(`No fue posible leer el historial completo: ${error.message}`);
@@ -88,6 +118,40 @@ async function loadAllMovements(organizationId: string) {
   return movements;
 }
 
+async function loadAllBalances(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+) {
+  const balances: InventoryBalance[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("inventory_balances")
+      .select(
+        "organization_id, product_id, warehouse_id, current_stock, average_cost, updated_at",
+      )
+      .eq("organization_id", organizationId)
+      .order("product_id", { ascending: true })
+      .order("warehouse_id", { ascending: true })
+      .range(from, from + exportPageSize - 1);
+
+    if (error) {
+      throw new Error(
+        `No fue posible leer las existencias completas: ${error.message}`,
+      );
+    }
+
+    const page = (data ?? []) as unknown as DbBalanceExport[];
+    if (page.length === 0) break;
+
+    balances.push(...page.map(mapBalance));
+    from += page.length;
+  }
+
+  return balances;
+}
+
 export async function GET() {
   try {
     const workspace = await loadWorkspaceData();
@@ -96,17 +160,24 @@ export async function GET() {
       workspace.viewer.role !== "admin"
     ) {
       return Response.json(
-        { message: "Solo un administrador puede exportar el respaldo completo." },
+        { message: "Solo un administrador puede exportar todos los datos." },
         { status: 403 },
       );
     }
 
-    const movements = await loadAllMovements(workspace.organization.id);
-    const output = await createWorkspaceWorkbookBuffer({
-      ...workspace,
-      movements,
-    });
-    const filename = `respaldo-kadmiel-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const supabase = await createSupabaseServerClient();
+    const [movements, balances] = await Promise.all([
+      loadAllMovements(supabase, workspace.organization.id),
+      loadAllBalances(supabase, workspace.organization.id),
+    ]);
+    const output = await createWorkspaceWorkbookBuffer(
+      {
+        ...workspace,
+        movements,
+      },
+      balances,
+    );
+    const filename = `exportacion-datos-kadmiel-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
     return new Response(output, {
       status: 200,
@@ -122,7 +193,7 @@ export async function GET() {
     const message =
       error instanceof Error && error.message.includes("sesión")
         ? error.message
-        : "No fue posible generar el respaldo completo. Inténtalo nuevamente.";
+        : "No fue posible generar la exportación. Inténtalo nuevamente.";
     return Response.json(
       { message },
       { status: message.includes("sesión") ? 401 : 500 },

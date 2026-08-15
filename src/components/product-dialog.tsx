@@ -144,7 +144,10 @@ export function ProductDialog() {
   }, [localImageUrl]);
 
   const imagePreviewUrl =
-    localImageUrl || (!removeImage ? editingProduct?.imageUrl : null);
+    localImageUrl ||
+    (!removeImage && editingProduct?.imagePath
+      ? `/api/product-images/${encodeURIComponent(editingProduct.id)}?size=preview`
+      : null);
   const hasProductImage = Boolean(
     imageFile || (!removeImage && editingProduct?.imagePath),
   );
@@ -286,7 +289,6 @@ export function ProductDialog() {
                 value={form.name}
                 onChange={(event) => updateField("name", event.target.value)}
                 placeholder="Ej. Espuma D20 de 4 pulgadas"
-                autoFocus
                 required
                 maxLength={140}
               />
