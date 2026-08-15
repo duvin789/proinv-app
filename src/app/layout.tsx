@@ -12,16 +12,57 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+function resolveMetadataBase() {
+  const productionHost =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim().replace(
+      /^https?:\/\//,
+      "",
+    ) || "";
+  const candidates = [
+    productionHost ? `https://${productionHost}` : "",
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() || "",
+    "http://localhost:3000",
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === "http:" || url.protocol === "https:") return url;
+    } catch {
+      continue;
+    }
+  }
+
+  return new URL("http://localhost:3000");
+}
+
 export const metadata: Metadata = {
+  metadataBase: resolveMetadataBase(),
   title: {
-    default: "Almacén LuisGB | Gestión de inventario",
-    template: "%s | Almacén LuisGB",
+    default: "Kadmiel Multimuebles | Gestión de inventario",
+    template: "%s | Kadmiel Multimuebles",
   },
   description:
-    "Sistema de inventario con cálculos automáticos, trazabilidad y reportes.",
-  applicationName: "Almacén LuisGB",
+    "Inventario de Kadmiel Multimuebles con costos, trazabilidad y reportes.",
+  applicationName: "Kadmiel Multimuebles",
   icons: {
-    icon: "/proinv-icon.svg",
+    icon: [{ url: "/kadmiel-logo.png", type: "image/png" }],
+    apple: [{ url: "/kadmiel-logo.png", type: "image/png" }],
+  },
+  openGraph: {
+    title: "Kadmiel Multimuebles | Gestión de inventario",
+    description:
+      "Inventario de Kadmiel Multimuebles con costos, trazabilidad y reportes.",
+    siteName: "Kadmiel Multimuebles",
+    images: [
+      {
+        url: "/kadmiel-logo.png",
+        width: 482,
+        height: 452,
+        alt: "Kadmiel Multimuebles",
+      },
+    ],
   },
 };
 

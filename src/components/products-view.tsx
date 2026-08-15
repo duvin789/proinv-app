@@ -12,6 +12,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
+import Image from "next/image";
 import {
   useDeferredValue,
   useMemo,
@@ -81,6 +82,8 @@ export function ProductsView() {
       const matchesSearch =
         !normalizedQuery ||
         product.name.toLocaleLowerCase("es").includes(normalizedQuery) ||
+        product.sku.toLocaleLowerCase("es").includes(normalizedQuery) ||
+        product.barcode?.toLocaleLowerCase("es").includes(normalizedQuery) ||
         supplierMap
           .get(product.supplierId || "")
           ?.name.toLocaleLowerCase("es")
@@ -133,6 +136,8 @@ export function ProductsView() {
       "Inventario",
       [
         "Producto",
+        "SKU",
+        "Código de barras",
         "Proveedor",
         "Categoría",
         "Stock",
@@ -147,6 +152,8 @@ export function ProductsView() {
         const status = getStockStatus(product);
         return [
           product.name,
+          product.sku,
+          product.barcode || "",
           supplierMap.get(product.supplierId || "")?.name || "Sin proveedor",
           categoryMap.get(product.categoryId || "")?.name || "Sin categoría",
           product.currentStock,
@@ -202,7 +209,7 @@ Escribe ELIMINAR para confirmar.`,
               setQuery(event.target.value);
               setPage(1);
             }}
-            placeholder="Buscar por producto o proveedor"
+            placeholder="Buscar por producto, SKU, código o proveedor"
             aria-label="Buscar productos"
           />
         </div>
@@ -332,25 +339,37 @@ Escribe ELIMINAR para confirmar.`,
                       <tr key={product.id}>
                         <td>
                           <div className="table-product">
-                            <span
-                              className="product-monogram"
-                              style={
-                                category
-                                  ? {
-                                      color: category.color,
-                                      backgroundColor: `${category.color}16`,
-                                    }
-                                  : undefined
-                              }
-                              aria-hidden="true"
-                            >
-                              {product.name.slice(0, 2).toUpperCase()}
-                            </span>
+                            {product.imageUrl ? (
+                              <Image
+                                className="product-monogram product-thumbnail"
+                                src={product.imageUrl}
+                                alt=""
+                                width={34}
+                                height={34}
+                                unoptimized
+                              />
+                            ) : (
+                              <span
+                                className="product-monogram"
+                                style={
+                                  category
+                                    ? {
+                                        color: category.color,
+                                        backgroundColor: `${category.color}16`,
+                                      }
+                                    : undefined
+                                }
+                                aria-hidden="true"
+                              >
+                                {product.name.slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
                             <div>
                               <strong>{product.name}</strong>
                               <span>
-                                {supplierMap.get(product.supplierId || "")
-                                  ?.name || "Sin proveedor"}
+                                {product.sku} ·{" "}
+                                {supplierMap.get(product.supplierId || "")?.name ||
+                                  "Sin proveedor"}
                               </span>
                             </div>
                           </div>

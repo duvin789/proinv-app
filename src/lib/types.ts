@@ -11,6 +11,8 @@ export type MovementType =
   | "transfer_in"
   | "transfer_out";
 
+export type InventoryImportConflictPolicy = "skip" | "update";
+
 export interface Viewer {
   id: string;
   email: string;
@@ -68,8 +70,12 @@ export interface Product {
   organizationId: string;
   categoryId: string | null;
   supplierId: string | null;
+  sku: string;
+  barcode: string | null;
   name: string;
   description: string | null;
+  imagePath: string | null;
+  imageUrl: string | null;
   unit: string;
   purchasePrice: number;
   salePrice: number;
@@ -116,6 +122,8 @@ export interface WorkspaceData {
 export interface ProductInput {
   name: string;
   description?: string;
+  sku?: string;
+  barcode?: string;
   categoryId?: string;
   supplierName?: string;
   warehouseId: string;
@@ -125,12 +133,15 @@ export interface ProductInput {
   initialStock: number;
   minStock: number;
   maxStock?: number | null;
+  imageFile?: File | null;
 }
 
 export interface ProductUpdateInput {
   id: string;
   name: string;
   description?: string;
+  sku?: string;
+  barcode?: string;
   categoryId?: string;
   supplierName?: string;
   unit: string;
@@ -138,19 +149,23 @@ export interface ProductUpdateInput {
   salePrice: number;
   minStock: number;
   maxStock?: number | null;
+  imageFile?: File | null;
+  removeImage?: boolean;
 }
 
 export interface InventoryImportRow {
   name: string;
+  sku?: string;
+  barcode?: string;
   category?: string;
   supplier?: string;
   description?: string;
-  purchasePrice: number;
-  salePrice: number;
-  unit: string;
-  initialStock: number;
+  purchasePrice?: number;
+  salePrice?: number;
+  unit?: string;
+  initialStock?: number;
   maxStock?: number | null;
-  minStock: number;
+  minStock?: number;
   warehouse?: string;
 }
 

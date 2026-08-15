@@ -32,6 +32,7 @@ import {
 import type {
   ActionResult,
   CategoryInput,
+  InventoryImportConflictPolicy,
   InventoryImportRow,
   InventoryMovement,
   MovementInput,
@@ -118,6 +119,7 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   importInventoryProducts: (
     rows: InventoryImportRow[],
+    conflictPolicy: InventoryImportConflictPolicy,
   ) => Promise<ActionResult<WorkspaceData>>;
   clearInventoryData: (
     confirmation: string,
@@ -299,8 +301,11 @@ export function InventoryProvider({
   );
 
   const importInventoryProducts = useCallback(
-    (rows: InventoryImportRow[]) =>
-      runRemote(() => importInventoryProductsAction(rows)),
+    (
+      rows: InventoryImportRow[],
+      conflictPolicy: InventoryImportConflictPolicy,
+    ) =>
+      runRemote(() => importInventoryProductsAction(rows, conflictPolicy)),
     [runRemote],
   );
 

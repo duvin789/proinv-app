@@ -1,6 +1,6 @@
-# Almacén LuisGB
+# Kadmiel Multimuebles
 
-Sistema de inventario para pequeñas y medianas empresas. El usuario registra productos y movimientos; Almacén LuisGB calcula automáticamente existencias, costo promedio, valorización, margen, utilidad, alertas y reportes.
+Sistema de inventario de Kadmiel Multimuebles. El equipo registra productos y movimientos; la aplicación calcula automáticamente existencias, costo promedio, valorización, margen, utilidad, alertas y reportes.
 
 Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el único origen de datos y el proyecto puede desplegarse directamente en Vercel.
 
@@ -8,6 +8,7 @@ Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el
 
 - Panel con valor del inventario, unidades, utilidad proyectada y alertas.
 - Catálogo de productos con búsqueda, filtros, estados y exportación Excel.
+- Imágenes privadas por producto, con vista previa, reemplazo y eliminación.
 - SKU automático cuando el usuario no ingresa uno.
 - Entradas, ventas, ajustes y devoluciones con historial completo.
 - Prevención de stock negativo dentro de una transacción de base de datos.
@@ -19,14 +20,14 @@ Está construido con Next.js 16, React 19, Supabase y TypeScript. Supabase es el
 - Modo claro y oscuro, diseño adaptable a escritorio, tableta y móvil.
 - Inicio de sesión simplificado, roles y aislamiento por empresa mediante Supabase Auth y RLS.
 - Exportaciones `.xlsx` para productos, movimientos y reportes.
-- Importación validada desde `.xlsx`, con vista previa y consolidación de nombres repetidos.
+- Importación validada desde `.xlsx`, con vista previa, detección de conflictos y decisión explícita entre omitir o actualizar datos comerciales sin modificar el stock existente.
 - Plantilla Excel y respaldo completo con inventario, movimientos, catálogos y resumen.
 - Preferencias locales de tema, densidad y visibilidad de alertas.
-- Borrado protegido de todos los datos operativos, exclusivo del propietario.
+- Borrado protegido de todos los datos operativos, disponible para propietarios y administradores.
 
 ## Cálculos automáticos
 
-Almacén LuisGB usa estas reglas:
+Kadmiel Multimuebles usa estas reglas:
 
 ```text
 Nuevo stock = stock anterior + entradas - salidas
@@ -66,7 +67,7 @@ npm run dev
 
 Antes de iniciar, crea `.env.local` a partir de `.env.example` y completa las variables públicas de Supabase. Después abre `http://localhost:3000` e inicia sesión. Las cuentas y sus permisos se administran desde Supabase.
 
-Almacén LuisGB no incluye datos simulados: productos, movimientos, configuración de empresa y cálculos se guardan en Supabase. Solo las preferencias visuales del dispositivo usan `localStorage`.
+Kadmiel Multimuebles no incluye datos simulados: productos, movimientos, configuración de empresa y cálculos se guardan en Supabase. Solo las preferencias visuales del dispositivo usan `localStorage`.
 
 ## Configurar Supabase
 
@@ -78,7 +79,7 @@ Almacén LuisGB no incluye datos simulados: productos, movimientos, configuraci�
    npx supabase db push --linked
    ```
 
-   La migración `202608060006_data_management.sql` agrega `max_stock` y las funciones transaccionales `create_product_with_stock_v2`, `import_inventory_products` y `clear_inventory_data`.
+   La migración `202608060006_data_management.sql` agrega `max_stock` y las funciones transaccionales de datos. La migración `202608140007_product_images_and_admin.sql` agrega imágenes privadas, la creación de productos con imagen y la versión de `clear_inventory_data` autorizada para propietario o administrador. La migración `202608140008_excel_import_conflicts.sql` agrega la resolución explícita de conflictos al importar Excel.
 
 4. En Supabase, copia la URL del proyecto y su clave pública o publishable key.
 5. Duplica `.env.example` como `.env.local` y completa:
@@ -111,10 +112,16 @@ En **Configuración > Datos** puedes:
 
 - descargar una plantilla `.xlsx` con los encabezados admitidos;
 - importar hasta 1000 filas o 10 MB con vista previa;
-- exportar un respaldo con las hojas Inventario, Movimientos, Catálogos y Resumen;
+- exportar un respaldo completo con las hojas Inventario, Movimientos, Catálogos y Resumen; el historial de movimientos se pagina internamente para incluirlo completo;
 - borrar los datos operativos después de escribir `BORRAR TODO`.
 
-La importación reconoce variaciones de mayúsculas, espacios y acentos en los encabezados. Las filas con el mismo nombre y unidad se consolidan sumando existencias; los productos ya existentes con esa misma identidad se omiten. Categorías, proveedores y almacenes faltantes se crean dentro de la misma transacción.
+La importación reconoce variaciones de mayúsculas, espacios y acentos en los encabezados. Las filas repetidas dentro del mismo archivo se consolidan. Si un producto ya existe con el mismo nombre y unidad, la vista previa obliga a elegir entre omitirlo o actualizar descripción, categoría y precios; ninguna de las dos opciones altera silenciosamente su stock. Categorías, proveedores y almacenes faltantes se crean dentro de la misma transacción.
+
+## Imágenes privadas de productos
+
+Las imágenes se guardan en el bucket privado `product-images` de Supabase Storage. La tabla de productos conserva únicamente la ruta privada y la aplicación genera una URL firmada de corta duración para mostrarla. Se admiten JPG, PNG y WebP de hasta 5 MB.
+
+Las políticas de Storage aíslan los archivos por empresa. Las personas con acceso a la empresa pueden verlos, mientras que propietarios, administradores y operadores pueden cargarlos, reemplazarlos o eliminarlos. El respaldo Excel no expone URLs firmadas ni datos de acceso.
 
 ## Roles y seguridad
 
@@ -128,6 +135,8 @@ La migración habilita Row Level Security en todas las tablas.
 | Consulta | Sí | No | No |
 
 Las funciones sensibles validan nuevamente el usuario, la empresa, el rol, el producto y el almacén. Las tablas de saldos y movimientos no admiten escrituras directas desde el cliente.
+
+El borrado total elimina productos, movimientos, saldos, catálogos operativos e imágenes asociadas. Conserva la cuenta, la empresa y el almacén principal para que el propietario o administrador pueda volver a empezar sin recrear el acceso.
 
 ## Desplegar en Vercel
 

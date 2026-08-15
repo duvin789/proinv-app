@@ -206,25 +206,7 @@ export function MovementDialog() {
                   ))}
               </select>
             </label>
-            <label className="field">
-              <span>Tipo de movimiento</span>
-              <select
-                value={form.type}
-                onChange={(event) =>
-                  updateField(
-                    "type",
-                    event.target.value as EditableMovementType,
-                  )
-                }
-              >
-                {movementOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
+            <label className="field field-span-2">
               <span>Almacén</span>
               <select
                 value={form.warehouseId}
@@ -241,6 +223,53 @@ export function MovementDialog() {
                 ))}
               </select>
             </label>
+            <fieldset className="movement-operation-fieldset field-span-2">
+              <legend>Operación</legend>
+              <p>
+                Elige qué pasó y el motivo que quedará en el historial.
+              </p>
+              <div className="movement-operation-grid">
+                <label className="field">
+                  <span>Tipo</span>
+                  <select
+                    value={form.type}
+                    onChange={(event) =>
+                      updateField(
+                        "type",
+                        event.target.value as EditableMovementType,
+                      )
+                    }
+                  >
+                    {movementOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Motivo</span>
+                  <select
+                    value={form.reason}
+                    onChange={(event) =>
+                      updateField("reason", event.target.value)
+                    }
+                  >
+                    <option value="">Sin motivo</option>
+                    {hasUnlistedReason ? (
+                      <option value={form.reason}>
+                        {form.reason} (histórico)
+                      </option>
+                    ) : null}
+                    {workspace.movementReasons.map((reason) => (
+                      <option key={reason.id} value={reason.name}>
+                        {reason.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </fieldset>
             <label className="field">
               <span>Cantidad</span>
               <input
@@ -301,23 +330,6 @@ export function MovementDialog() {
                 </div>
               </div>
             )}
-            <label className="field field-span-2">
-              <span>Motivo</span>
-              <select
-                value={form.reason}
-                onChange={(event) => updateField("reason", event.target.value)}
-              >
-                <option value="">Sin motivo</option>
-                {hasUnlistedReason ? (
-                  <option value={form.reason}>{form.reason} (histórico)</option>
-                ) : null}
-                {workspace.movementReasons.map((reason) => (
-                  <option key={reason.id} value={reason.name}>
-                    {reason.name}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="field field-span-2">
               <span>Observación adicional</span>
               <textarea

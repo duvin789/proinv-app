@@ -21,7 +21,11 @@ import {
 
 import { useInventory } from "@/components/inventory-provider";
 import { Modal } from "@/components/ui/modal";
-import { downloadTableWorkbook } from "@/lib/excel";
+import {
+  buildMovementWorkbookRows,
+  downloadTableWorkbook,
+  movementWorkbookHeaders,
+} from "@/lib/excel";
 import {
   formatCurrency,
   formatDate,
@@ -156,39 +160,12 @@ export function MovementsView() {
     await downloadTableWorkbook(
       `movimientos-${new Date().toISOString().slice(0, 10)}.xlsx`,
       "Movimientos",
-      [
-        "Fecha",
-        "Producto",
-        "Tipo",
-        "Cantidad",
-        "Stock anterior",
-        "Stock final",
-        "Costo unitario",
-        "Precio vendido",
-        "Costo total",
-        "Ingreso",
-        "Ganancia bruta",
-        "Motivo",
-        "Observación",
-      ],
-      filteredMovements.map((movement) => {
-        const product = productMap.get(movement.productId);
-        return [
-          movement.occurredAt,
-          product?.name || "Producto eliminado",
-          movementLabels[movement.type],
-          movement.quantity,
-          movement.stockBefore,
-          movement.stockAfter,
-          movement.unitCost,
-          movement.saleUnitPrice || "",
-          movement.totalCost,
-          movement.revenue,
-          movement.grossProfit,
-          movement.reason || "",
-          movement.note || "",
-        ];
-      }),
+      [...movementWorkbookHeaders],
+      buildMovementWorkbookRows(
+        filteredMovements,
+        products,
+        warehouses,
+      ),
     );
   }
 
@@ -342,9 +319,8 @@ export function MovementsView() {
                   <tr>
                     <th>Fecha</th>
                     <th>Producto</th>
-                    <th>Movimiento</th>
+                    <th>Operación y motivo</th>
                     <th>Almacén</th>
-                    <th>Motivo</th>
                     <th className="align-right">Cantidad</th>
                     <th className="align-right">Stock</th>
                     <th className="align-right">Importe</th>
@@ -507,7 +483,7 @@ function MovementRow({
           </span>
         </div>
       </td>
-      <td>
+      <td data-label="Producto">
         <div className="table-product compact-product">
           <span className="product-monogram" aria-hidden="true">
             {productName.slice(0, 2).toUpperCase()}
@@ -518,25 +494,25 @@ function MovementRow({
           </div>
         </div>
       </td>
-      <td data-label="Movimiento">
-        <span
-          className={`movement-badge ${incoming ? "movement-in" : "movement-out"}`}
-        >
-          {incoming ? (
-            <ArrowUpIcon size={14} weight="bold" />
-          ) : (
-            <ArrowDownIcon size={14} weight="bold" />
-          )}
-          {movementShortLabels[movement.type]}
-        </span>
-      </td>
-      <td data-label="Almacén">{warehouseName}</td>
-      <td data-label="Motivo">
-        <div className="reason-cell">
-          <strong>{movement.reason || "Sin motivo"}</strong>
-          {movement.note ? <span>{movement.note}</span> : null}
+      <td data-label="Operación y motivo">
+        <div className="movement-operation-cell">
+          <span
+            className={`movement-badge ${incoming ? "movement-in" : "movement-out"}`}
+          >
+            {incoming ? (
+              <ArrowUpIcon size={14} weight="bold" />
+            ) : (
+              <ArrowDownIcon size={14} weight="bold" />
+            )}
+            {movementShortLabels[movement.type]}
+          </span>
+          <div className="reason-cell">
+            <strong>{movement.reason || "Sin motivo"}</strong>
+            {movement.note ? <span>{movement.note}</span> : null}
+          </div>
         </div>
       </td>
+      <td data-label="Almacén">{warehouseName}</td>
       <td className="align-right table-number" data-label="Cantidad">
         {incoming ? "+" : "-"}
         {formatNumber(movement.quantity, locale)}

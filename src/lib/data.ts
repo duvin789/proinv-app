@@ -72,8 +72,11 @@ interface DbProduct {
   organization_id: string;
   category_id: string | null;
   supplier_id: string | null;
+  sku: string;
+  barcode: string | null;
   name: string;
   description: string | null;
+  image_path?: string | null;
   unit: string;
   purchase_price: number | string;
   sale_price: number | string;
@@ -86,6 +89,7 @@ interface DbProduct {
 
 interface DbBalance {
   product_id: string;
+  warehouse_id: string;
   current_stock: number | string;
   average_cost: number | string;
 }
@@ -110,6 +114,24 @@ interface DbMovement {
   created_by: string | null;
 }
 
+interface QueryError {
+  code?: string;
+  message: string;
+}
+
+interface PagedQueryResult {
+  data: unknown[] | null;
+  error: QueryError | null;
+}
+
+type SupabaseServerClient = Awaited<
+  ReturnType<typeof createSupabaseServerClient>
+>;
+
+const databasePageSize = 1000;
+const signedImageChunkSize = 100;
+const signedImageConcurrency = 5;
+
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -119,6 +141,64 @@ function resultError(
   results: Array<{ error: { message: string } | null }>,
 ): string | null {
   return results.find((result) => result.error)?.error?.message || null;
+}
+
+async function loadAllRows(
+  loadPage: (from: number, to: number) => Promise<PagedQueryResult>,
+): Promise<PagedQueryResult> {
+  const rows: unknown[] = [];
+  let from = 0;
+
+  while (true) {
+    const result = await loadPage(from, from + databasePageSize - 1);
+    if (result.error) return { data: null, error: result.error };
+
+    const page = result.data ?? [];
+    if (page.length === 0) return { data: rows, error: null };
+
+    rows.push(...page);
+    from += page.length;
+  }
+}
+
+async function loadProducts(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<PagedQueryResult> {
+  const loadWithColumns = (columns: string) =>
+    loadAllRows(async (from, to) => {
+      const { data, error } = await supabase
+        .from("products")
+        .select(columns)
+        .eq("organization_id", organizationId)
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
+      return { data, error };
+    });
+
+  const productsWithImages = await loadWithColumns(
+    "id, organization_id, category_id, supplier_id, sku, barcode, name, description, image_path, unit, purchase_price, sale_price, min_stock, max_stock, active, created_at, updated_at",
+  );
+  if (!productsWithImages.error) return productsWithImages;
+
+  const missingOptionalColumn =
+    productsWithImages.error.code === "42703" &&
+    (productsWithImages.error.message.includes("image_path") ||
+      productsWithImages.error.message.includes("max_stock"));
+  if (!missingOptionalColumn) return productsWithImages;
+
+  const productsWithMaxStock = await loadWithColumns(
+    "id, organization_id, category_id, supplier_id, sku, barcode, name, description, unit, purchase_price, sale_price, min_stock, max_stock, active, created_at, updated_at",
+  );
+  const missingMaxStock =
+    productsWithMaxStock.error?.code === "42703" &&
+    productsWithMaxStock.error.message.includes("max_stock");
+  if (!missingMaxStock) return productsWithMaxStock;
+
+  return loadWithColumns(
+    "id, organization_id, category_id, supplier_id, sku, barcode, name, description, unit, purchase_price, sale_price, min_stock, active, created_at, updated_at",
+  );
 }
 
 export async function loadWorkspaceData(): Promise<WorkspaceData> {
@@ -168,58 +248,62 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       .select("id, name, tax_id, currency, tax_rate, locale, created_at")
       .eq("id", organizationId)
       .single(),
-    supabase
-      .from("categories")
-      .select("id, organization_id, name, color, created_at")
-      .eq("organization_id", organizationId)
-      .order("name"),
-    supabase
-      .from("movement_reasons")
-      .select("id, organization_id, name, created_at")
-      .eq("organization_id", organizationId)
-      .order("name"),
-    supabase
-      .from("suppliers")
-      .select(
-        "id, organization_id, name, contact_name, email, phone, created_at",
-      )
-      .eq("organization_id", organizationId)
-      .order("name"),
-    supabase
-      .from("warehouses")
-      .select(
-        "id, organization_id, name, location, is_default, created_at",
-      )
-      .eq("organization_id", organizationId)
-      .order("is_default", { ascending: false })
-      .order("name"),
-    (async () => {
-      const productsWithMaxStock = await supabase
-        .from("products")
+    loadAllRows(async (from, to) => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, organization_id, name, color, created_at")
+        .eq("organization_id", organizationId)
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
+      return { data, error };
+    }),
+    loadAllRows(async (from, to) => {
+      const { data, error } = await supabase
+        .from("movement_reasons")
+        .select("id, organization_id, name, created_at")
+        .eq("organization_id", organizationId)
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
+      return { data, error };
+    }),
+    loadAllRows(async (from, to) => {
+      const { data, error } = await supabase
+        .from("suppliers")
         .select(
-          "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, max_stock, active, created_at, updated_at",
+          "id, organization_id, name, contact_name, email, phone, created_at",
         )
         .eq("organization_id", organizationId)
-        .order("name");
-
-      const missingMaxStock =
-        productsWithMaxStock.error?.code === "42703" &&
-        productsWithMaxStock.error.message.includes("max_stock");
-
-      if (!missingMaxStock) return productsWithMaxStock;
-
-      return supabase
-        .from("products")
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
+      return { data, error };
+    }),
+    loadAllRows(async (from, to) => {
+      const { data, error } = await supabase
+        .from("warehouses")
         .select(
-          "id, organization_id, category_id, supplier_id, name, description, unit, purchase_price, sale_price, min_stock, active, created_at, updated_at",
+          "id, organization_id, name, location, is_default, created_at",
         )
         .eq("organization_id", organizationId)
-        .order("name");
-    })(),
-    supabase
-      .from("inventory_balances")
-      .select("product_id, current_stock, average_cost")
-      .eq("organization_id", organizationId),
+        .order("is_default", { ascending: false })
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to);
+      return { data, error };
+    }),
+    loadProducts(supabase, organizationId),
+    loadAllRows(async (from, to) => {
+      const { data, error } = await supabase
+        .from("inventory_balances")
+        .select("product_id, warehouse_id, current_stock, average_cost")
+        .eq("organization_id", organizationId)
+        .order("product_id", { ascending: true })
+        .order("warehouse_id", { ascending: true })
+        .range(from, to);
+      return { data, error };
+    }),
     supabase
       .from("inventory_movements")
       .select(
@@ -227,6 +311,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       )
       .eq("organization_id", organizationId)
       .order("occurred_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(500),
   ]);
 
@@ -254,6 +339,45 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
   const dbProducts = (productsResult.data ?? []) as unknown as DbProduct[];
   const dbBalances = (balancesResult.data ?? []) as unknown as DbBalance[];
   const dbMovements = (movementsResult.data ?? []) as unknown as DbMovement[];
+
+  const imagePaths = Array.from(
+    new Set(
+      dbProducts
+        .map((product) => product.image_path)
+        .filter((path): path is string => Boolean(path)),
+    ),
+  );
+  const imageUrlMap = new Map<string, string>();
+  if (imagePaths.length > 0) {
+    const imageChunks: string[][] = [];
+    for (let index = 0; index < imagePaths.length; index += signedImageChunkSize) {
+      imageChunks.push(imagePaths.slice(index, index + signedImageChunkSize));
+    }
+
+    for (
+      let index = 0;
+      index < imageChunks.length;
+      index += signedImageConcurrency
+    ) {
+      const signedImageResults = await Promise.all(
+        imageChunks
+          .slice(index, index + signedImageConcurrency)
+          .map((paths) =>
+            supabase.storage
+              .from("product-images")
+              .createSignedUrls(paths, 60 * 60 * 6),
+          ),
+      );
+
+      for (const result of signedImageResults) {
+        for (const signedImage of result.data ?? []) {
+          if (signedImage.path && signedImage.signedUrl) {
+            imageUrlMap.set(signedImage.path, signedImage.signedUrl);
+          }
+        }
+      }
+    }
+  }
 
   const balanceMap = new Map<
     string,
@@ -329,8 +453,14 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
       organizationId: product.organization_id,
       categoryId: product.category_id,
       supplierId: product.supplier_id,
+      sku: product.sku,
+      barcode: product.barcode,
       name: product.name,
       description: product.description,
+      imagePath: product.image_path ?? null,
+      imageUrl: product.image_path
+        ? imageUrlMap.get(product.image_path) ?? null
+        : null,
       unit: product.unit,
       purchasePrice: fallbackCost,
       salePrice: toNumber(product.sale_price),

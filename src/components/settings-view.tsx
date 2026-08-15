@@ -25,12 +25,12 @@ import { PreferencesPanel } from "@/components/preferences-panel";
 import { formatNumber } from "@/lib/format";
 
 const categoryColors = [
-  "#0ea5e9",
-  "#0284c7",
-  "#38bdf8",
-  "#0369a1",
-  "#22d3ee",
-  "#2563eb",
+  "#b00060",
+  "#13828c",
+  "#be5a08",
+  "#8b6f00",
+  "#5a4b53",
+  "#7a5668",
 ];
 
 export function SettingsView() {

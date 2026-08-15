@@ -17,8 +17,9 @@ import {
   WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import Link from "next/link";
 import dynamic from "next/dynamic";
+import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -158,14 +159,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="brand-lockup"
             onClick={() => setSidebarOpen(false)}
           >
-            <span className="brand-mark" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+            <span className="brand-logo-shell">
+              <Image
+                src="/kadmiel-logo.png"
+                alt=""
+                width={482}
+                height={452}
+                sizes="42px"
+              />
             </span>
             <span>
-              <strong>Almacén LuisGB</strong>
-              <small>Gestión de inventario</small>
+              <strong>Kadmiel</strong>
+              <small>Multimuebles · Inventario</small>
             </span>
           </Link>
           <button

@@ -9,16 +9,22 @@ import {
   UploadSimpleIcon,
   WarningIcon,
 } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { useInventory } from "@/components/inventory-provider";
 import { Modal } from "@/components/ui/modal";
 import {
   downloadInventoryTemplate,
-  downloadWorkspaceWorkbook,
+  downloadCompleteWorkspaceWorkbook,
+  inventoryConflictKey,
+  inventoryNameKey,
   parseInventoryWorkbook,
   type InventoryImportPreview,
 } from "@/lib/excel";
+import type {
+  InventoryImportConflictPolicy,
+  Product,
+} from "@/lib/types";
 
 export function DataManagementPanel() {
   const {
@@ -30,6 +36,11 @@ export function DataManagementPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<InventoryImportPreview | null>(null);
   const [fileName, setFileName] = useState("");
+  const [conflictPolicy, setConflictPolicy] = useState<
+    "" | InventoryImportConflictPolicy
+  >(
+    "",
+  );
   const [busyTask, setBusyTask] = useState<
     "parse" | "export" | "template" | null
   >(null);
@@ -38,7 +49,55 @@ export function DataManagementPanel() {
   const [confirmation, setConfirmation] = useState("");
   const canManage =
     workspace.viewer.role === "owner" || workspace.viewer.role === "admin";
-  const canDeleteAll = workspace.viewer.role === "owner";
+  const canDeleteAll = canManage;
+  const previewConflicts = useMemo(() => {
+    if (!preview) return [];
+    const existingByKey = new Map(
+      workspace.products.map((product) => [
+        inventoryConflictKey(product),
+        product,
+      ]),
+    );
+    const existingByName = new Map<string, Product[]>();
+    for (const product of workspace.products) {
+      const key = inventoryNameKey(product);
+      existingByName.set(key, [
+        ...(existingByName.get(key) || []),
+        product,
+      ]);
+    }
+    const existingBySku = new Map(
+      workspace.products.map((product) => [
+        product.sku.trim().toUpperCase(),
+        product,
+      ]),
+    );
+    const existingByBarcode = new Map(
+      workspace.products.flatMap((product) =>
+        product.barcode ? [[product.barcode.trim(), product] as const] : [],
+      ),
+    );
+    return preview.rows.flatMap((row, index) => {
+      const product =
+        (row.unit
+          ? existingByKey.get(inventoryConflictKey(row))
+          : existingByName.get(inventoryNameKey(row))?.[0]) ||
+        (row.sku ? existingBySku.get(row.sku.trim().toUpperCase()) : null) ||
+        (row.barcode
+          ? existingByBarcode.get(row.barcode.trim())
+          : null);
+      return product ? [{ index, row, product }] : [];
+    });
+  }, [preview, workspace.products]);
+  const conflictIndexes = useMemo(
+    () => new Set(previewConflicts.map((conflict) => conflict.index)),
+    [previewConflicts],
+  );
+  const newRows = useMemo(
+    () =>
+      preview?.rows.filter((_, index) => !conflictIndexes.has(index)) || [],
+    [conflictIndexes, preview],
+  );
 
   async function selectFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -49,6 +108,7 @@ export function DataManagementPanel() {
       const result = await parseInventoryWorkbook(file);
       setFileName(file.name);
       setPreview(result);
+      setConflictPolicy("");
     } catch (parseError) {
       setError(
         parseError instanceof Error
@@ -65,7 +125,7 @@ export function DataManagementPanel() {
     setError("");
     setBusyTask("export");
     try {
-      await downloadWorkspaceWorkbook(workspace);
+      await downloadCompleteWorkspaceWorkbook();
     } catch (exportError) {
       setError(
         exportError instanceof Error
@@ -97,12 +157,28 @@ export function DataManagementPanel() {
     if (isMutating) return;
     setPreview(null);
     setFileName("");
+    setConflictPolicy("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function confirmImport() {
     if (!preview?.rows.length) return;
-    const result = await importInventoryProducts(preview.rows);
+    if (previewConflicts.length > 0 && !conflictPolicy) {
+      setError("Elige qué hacer con los productos que ya existen.");
+      return;
+    }
+    const policy: InventoryImportConflictPolicy =
+      previewConflicts.length > 0
+        ? (conflictPolicy as InventoryImportConflictPolicy)
+        : "skip";
+    if (policy === "skip" && newRows.length === 0) {
+      setError(
+        "Todos los productos del archivo ya existen. No hay filas nuevas para importar.",
+      );
+      return;
+    }
+    const rowsToImport = policy === "update" ? preview.rows : newRows;
+    const result = await importInventoryProducts(rowsToImport, policy);
     if (result.ok) closePreview();
     else setError(result.message);
   }
@@ -133,7 +209,12 @@ export function DataManagementPanel() {
             type="button"
             className="button button-secondary"
             onClick={exportBackup}
-            disabled={busyTask !== null}
+            disabled={!canManage || busyTask !== null}
+            title={
+              canManage
+                ? undefined
+                : "Solo un administrador puede exportar el respaldo completo"
+            }
           >
             <DownloadSimpleIcon size={18} weight="bold" />
             {busyTask === "export" ? "Preparando..." : "Exportar Excel"}
@@ -183,8 +264,8 @@ export function DataManagementPanel() {
       </div>
 
       <p className="settings-helper data-helper">
-        Las coincidencias por nombre y unidad se omiten para evitar duplicados.
-        Las filas repetidas del mismo archivo suman su stock.
+        Antes de guardar se comparan nombre y unidad. Si hay coincidencias,
+        eliges cómo resolverlas; nunca se cambia el stock existente en silencio.
       </p>
 
       {error ? (
@@ -209,7 +290,7 @@ export function DataManagementPanel() {
           title={
             canDeleteAll
               ? undefined
-              : "Solo el propietario puede borrar todos los datos"
+              : "Solo propietarios y administradores pueden borrar todos los datos"
           }
         >
           <TrashIcon size={18} />
@@ -229,8 +310,13 @@ export function DataManagementPanel() {
             <div className="import-summary">
               <div>
                 <CheckCircleIcon size={20} weight="fill" />
-                <span>Listos</span>
-                <strong>{preview.rows.length}</strong>
+                <span>Nuevos</span>
+                <strong>{newRows.length}</strong>
+              </div>
+              <div>
+                <WarningIcon size={20} weight="duotone" />
+                <span>Coincidencias</span>
+                <strong>{previewConflicts.length}</strong>
               </div>
               <div>
                 <WarningIcon size={20} weight="duotone" />
@@ -256,22 +342,42 @@ export function DataManagementPanel() {
                 <thead>
                   <tr>
                     <th>Producto</th>
+                    <th>SKU o código</th>
                     <th>Proveedor</th>
                     <th>Unidad</th>
                     <th className="align-right">Stock</th>
                     <th className="align-right">Mínimo</th>
+                    <th>Resultado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.rows.slice(0, 8).map((row, index) => (
-                    <tr key={`${row.name}-${row.supplier || ""}-${index}`}>
-                      <td>{row.name}</td>
-                      <td>{row.supplier || "Sin proveedor"}</td>
-                      <td>{row.unit}</td>
-                      <td className="align-right">{row.initialStock}</td>
-                      <td className="align-right">{row.minStock}</td>
-                    </tr>
-                  ))}
+                  {preview.rows.slice(0, 8).map((row, index) => {
+                    const isConflict = conflictIndexes.has(index);
+                    return (
+                      <tr key={`${row.name}-${row.supplier || ""}-${index}`}>
+                        <td>{row.name}</td>
+                        <td>
+                          {row.sku ||
+                            row.barcode ||
+                            (isConflict ? "Sin cambio" : "Sin código")}
+                        </td>
+                        <td>
+                          {row.supplier ||
+                            (isConflict ? "Sin cambio" : "Sin proveedor")}
+                        </td>
+                        <td>
+                          {row.unit || (isConflict ? "Sin cambio" : "unidad")}
+                        </td>
+                        <td className="align-right">
+                          {isConflict ? "No cambia" : (row.initialStock ?? 0)}
+                        </td>
+                        <td className="align-right">
+                          {row.minStock ?? (isConflict ? "Sin cambio" : 0)}
+                        </td>
+                        <td>{isConflict ? "Ya existe" : "Producto nuevo"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -279,6 +385,37 @@ export function DataManagementPanel() {
               <p className="import-more">
                 Y {preview.rows.length - 8} productos más.
               </p>
+            ) : null}
+
+            {previewConflicts.length > 0 ? (
+              <label className="field">
+                <span>Qué hacer con las coincidencias</span>
+                <select
+                  value={conflictPolicy}
+                  onChange={(event) => {
+                    setConflictPolicy(
+                      event.target.value as
+                        | ""
+                        | InventoryImportConflictPolicy,
+                    );
+                    setError("");
+                  }}
+                  required
+                >
+                  <option value="">Elige una opción antes de importar</option>
+                  <option value="skip">
+                    Omitir coincidencias y conservarlas sin cambios
+                  </option>
+                  <option value="update">
+                    Actualizar solo las celdas llenas, sin cambiar stock
+                  </option>
+                </select>
+                <small>
+                  Se detectaron {previewConflicts.length} productos con el mismo
+                  nombre, unidad o código. Las celdas vacías conservarán el
+                  valor actual y ninguna opción sumará sus existencias.
+                </small>
+              </label>
             ) : null}
 
             {preview.issues.length ? (
@@ -307,12 +444,20 @@ export function DataManagementPanel() {
                 type="button"
                 className="button button-primary"
                 onClick={confirmImport}
-                disabled={isMutating || preview.rows.length === 0}
+                disabled={
+                  isMutating ||
+                  preview.rows.length === 0 ||
+                  (previewConflicts.length > 0 &&
+                    (!conflictPolicy ||
+                      (conflictPolicy === "skip" && newRows.length === 0)))
+                }
               >
                 <UploadSimpleIcon size={18} weight="bold" />
                 {isMutating
                   ? "Importando..."
-                  : `Importar ${preview.rows.length} productos`}
+                  : conflictPolicy === "update"
+                    ? `Crear o actualizar ${preview.rows.length} productos`
+                    : `Importar ${newRows.length} productos nuevos`}
               </button>
             </footer>
           </div>

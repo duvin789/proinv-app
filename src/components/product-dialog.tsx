@@ -1,7 +1,14 @@
 "use client";
 
-import { CalculatorIcon, InfoIcon } from "@phosphor-icons/react";
-import { useMemo, useState } from "react";
+import {
+  CalculatorIcon,
+  ImageSquareIcon,
+  InfoIcon,
+  TrashIcon,
+  UploadSimpleIcon,
+} from "@phosphor-icons/react";
+import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { useInventory } from "@/components/inventory-provider";
@@ -72,6 +79,8 @@ const manufacturingUnits = [
 const emptyForm = {
   name: "",
   description: "",
+  sku: "",
+  barcode: "",
   categoryId: "",
   supplierName: "",
   warehouseId: "",
@@ -103,6 +112,8 @@ export function ProductDialog() {
       ? {
           name: product.name,
           description: product.description || "",
+          sku: product.sku,
+          barcode: product.barcode || "",
           categoryId: product.categoryId || "",
           supplierName:
             workspace.suppliers.find(
@@ -120,7 +131,23 @@ export function ProductDialog() {
       : { ...emptyForm, warehouseId };
   });
   const [error, setError] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [localImageUrl, setLocalImageUrl] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const editingProduct = productDialog.product;
+
+  useEffect(() => {
+    return () => {
+      if (localImageUrl) URL.revokeObjectURL(localImageUrl);
+    };
+  }, [localImageUrl]);
+
+  const imagePreviewUrl =
+    localImageUrl || (!removeImage ? editingProduct?.imageUrl : null);
+  const hasProductImage = Boolean(
+    imageFile || (!removeImage && editingProduct?.imagePath),
+  );
 
   const calculations = useMemo(() => {
     const purchasePrice = Number(form.purchasePrice) || 0;
@@ -136,6 +163,34 @@ export function ProductDialog() {
 
   function updateField(name: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleImageChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("La imagen debe estar en formato JPG, PNG o WebP.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size <= 0 || file.size > 5 * 1024 * 1024) {
+      setError("La imagen debe pesar como máximo 5 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setError("");
+    setImageFile(file);
+    setLocalImageUrl(URL.createObjectURL(file));
+    setRemoveImage(false);
+  }
+
+  function clearImage() {
+    setImageFile(null);
+    setLocalImageUrl(null);
+    setRemoveImage(Boolean(editingProduct?.imagePath));
+    if (imageInputRef.current) imageInputRef.current.value = "";
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -174,6 +229,8 @@ export function ProductDialog() {
     const base = {
       name: form.name,
       description: form.description || undefined,
+      sku: form.sku || undefined,
+      barcode: form.barcode || undefined,
       categoryId: form.categoryId || undefined,
       supplierName: form.supplierName || undefined,
       unit: form.unit,
@@ -181,12 +238,14 @@ export function ProductDialog() {
       salePrice: Number(form.salePrice),
       minStock: Number(form.minStock),
       maxStock: form.maxStock === "" ? null : Number(form.maxStock),
+      imageFile,
     };
 
     const result = editingProduct
       ? await updateProduct({
           ...base,
           id: editingProduct.id,
+          removeImage,
         } satisfies ProductUpdateInput)
       : await createProduct({
           ...base,
@@ -209,7 +268,7 @@ export function ProductDialog() {
       description={
         editingProduct
           ? "Actualiza los datos comerciales. El stock se modifica con movimientos."
-          : "Completa lo esencial. Almacén LuisGB hará los cálculos por ti."
+          : "Completa lo esencial. Kadmiel hará los cálculos por ti."
       }
       size="lg"
     >
@@ -230,6 +289,31 @@ export function ProductDialog() {
                 autoFocus
                 required
                 maxLength={140}
+              />
+            </label>
+            <label className="field">
+              <span>SKU</span>
+              <input
+                name="sku"
+                value={form.sku}
+                onChange={(event) => updateField("sku", event.target.value)}
+                placeholder="Se genera si lo dejas vacío"
+                maxLength={80}
+                autoComplete="off"
+              />
+            </label>
+            <label className="field">
+              <span>Código de barras</span>
+              <input
+                name="barcode"
+                value={form.barcode}
+                onChange={(event) =>
+                  updateField("barcode", event.target.value)
+                }
+                placeholder="Escanea o escribe el código"
+                maxLength={80}
+                inputMode="numeric"
+                autoComplete="off"
               />
             </label>
             <label className="field">
@@ -281,6 +365,52 @@ export function ProductDialog() {
                 maxLength={500}
               />
             </label>
+            <div className="product-image-field field-span-2">
+              <div className="product-image-preview" aria-live="polite">
+                {imagePreviewUrl ? (
+                  <Image
+                    src={imagePreviewUrl}
+                    alt={`Vista previa de ${form.name || "producto"}`}
+                    width={160}
+                    height={120}
+                    unoptimized
+                  />
+                ) : (
+                  <ImageSquareIcon
+                    size={34}
+                    weight="duotone"
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+              <div className="product-image-controls">
+                <strong>Imagen del producto</strong>
+                <span>JPG, PNG o WebP. Máximo 5 MB.</span>
+                <div>
+                  <label className="button button-secondary product-image-upload">
+                    <UploadSimpleIcon size={17} weight="bold" />
+                    {hasProductImage ? "Cambiar imagen" : "Elegir imagen"}
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleImageChange}
+                      className="sr-only"
+                    />
+                  </label>
+                  {hasProductImage ? (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={clearImage}
+                    >
+                      <TrashIcon size={17} />
+                      Quitar
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

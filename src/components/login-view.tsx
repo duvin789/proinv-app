@@ -2,12 +2,11 @@
 
 import {
   ArrowRightIcon,
-  CalculatorIcon,
   EyeIcon,
   EyeSlashIcon,
   LockKeyIcon,
-  PackageIcon,
 } from "@phosphor-icons/react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -61,147 +60,104 @@ export function LoginView({ configured }: { configured: boolean }) {
 
   return (
     <main className="login-page">
-      <section className="login-story">
+      <section className="login-panel" aria-labelledby="login-title">
         <div className="login-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-            <span />
+          <span className="login-logo-frame">
+            <Image
+              src="/kadmiel-logo.png"
+              alt="Kadmiel Multimuebles"
+              width={482}
+              height={452}
+              priority
+              sizes="112px"
+            />
           </span>
-          <strong>Almacén LuisGB</strong>
+          <span className="login-brand-copy">
+            <strong>Kadmiel Multimuebles</strong>
+            <span>Gestión de inventario</span>
+          </span>
         </div>
 
-        <div className="login-story-copy">
-          <span className="login-eyebrow">Inventario calculado al momento</span>
-          <h1>Control claro para cada entrada y salida.</h1>
-          <p>
-            Consulta existencias, costos y rentabilidad desde un solo lugar.
-          </p>
+        <div className="login-form-heading">
+          <span className="login-eyebrow">Acceso administrativo</span>
+          <h1 id="login-title">Iniciar sesión</h1>
         </div>
 
-        <div className="login-calculation">
-          <div className="login-calculation-heading">
-            <span className="calculation-symbol">
-              <CalculatorIcon size={22} weight="duotone" />
-            </span>
-            <div>
-              <strong>Cálculo automático</strong>
-              <span>Ejemplo de una entrada</span>
-            </div>
-          </div>
-          <div className="login-calculation-row">
-            <span>Stock anterior</span>
-            <strong>18 unidades</strong>
-          </div>
-          <div className="login-calculation-row">
-            <span>Compra registrada</span>
-            <strong>+ 24 unidades</strong>
-          </div>
-          <div className="login-calculation-result">
-            <span>Nuevo stock</span>
-            <strong>42 unidades</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="login-form-side">
-        <div className="login-form-wrap">
-          <div className="login-form-heading">
-            <span className="login-mobile-brand">
-              <PackageIcon size={22} weight="duotone" />
-              Almacén LuisGB
-            </span>
-            <h2>Iniciar sesión</h2>
-            <p>Ingresa con la cuenta administrada desde Supabase.</p>
-          </div>
-
-          <form className="login-form" onSubmit={handleSubmit}>
-            <label className="field">
-              <span>Correo electrónico</span>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label className="field">
+            <span>Correo electrónico</span>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  email: event.target.value,
+                }))
+              }
+              placeholder="correo@empresa.com"
+              autoComplete="email"
+              disabled={!configured || pending}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Contraseña</span>
+            <div className="password-field">
+              <LockKeyIcon size={18} />
               <input
-                type="email"
-                value={form.email}
+                type={showPassword ? "text" : "password"}
+                value={form.password}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    email: event.target.value,
+                    password: event.target.value,
                   }))
                 }
-                placeholder="nombre@empresa.com"
-                autoComplete="email"
+                placeholder="Tu contraseña"
+                autoComplete="current-password"
                 disabled={!configured || pending}
                 required
-                autoFocus
               />
-            </label>
-            <label className="field">
-              <span>Contraseña</span>
-              <div className="password-field">
-                <LockKeyIcon size={18} />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={form.password}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      password: event.target.value,
-                    }))
-                  }
-                  placeholder="Tu contraseña"
-                  autoComplete="current-password"
-                  disabled={!configured || pending}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={
-                    showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
-                  }
-                  disabled={!configured || pending}
-                >
-                  {showPassword ? (
-                    <EyeSlashIcon size={18} />
-                  ) : (
-                    <EyeIcon size={18} />
-                  )}
-                </button>
-              </div>
-            </label>
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={
+                  showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                }
+                disabled={!configured || pending}
+              >
+                {showPassword ? (
+                  <EyeSlashIcon size={18} />
+                ) : (
+                  <EyeIcon size={18} />
+                )}
+              </button>
+            </div>
+          </label>
 
-            {message ? (
-              <div className="auth-message auth-error" role="alert">
-                {message}
-              </div>
-            ) : null}
-
-            <button
-              type="submit"
-              className="button button-primary login-submit"
-              disabled={pending || !configured}
-            >
-              {pending ? "Verificando..." : "Entrar"}
-              {!pending ? <ArrowRightIcon size={18} weight="bold" /> : null}
-            </button>
-          </form>
-
-          {!configured ? (
-            <div className="configuration-alert" role="alert">
-              <div>
-                <strong>Configuración requerida</strong>
-                <p>
-                  Agrega la URL y la clave pública de Supabase en las variables
-                  de entorno del servidor.
-                </p>
-              </div>
+          {message ? (
+            <div className="auth-message auth-error" role="alert">
+              {message}
             </div>
           ) : null}
 
-          <p className="login-security-note">
-            No se crean cuentas desde esta pantalla. El acceso y los permisos
-            se gestionan en Supabase.
-          </p>
-        </div>
+          <button
+            type="submit"
+            className="button button-primary login-submit"
+            disabled={pending || !configured}
+          >
+            {pending ? "Verificando..." : "Entrar"}
+            {!pending ? <ArrowRightIcon size={18} weight="bold" /> : null}
+          </button>
+        </form>
+
+        {!configured ? (
+          <div className="configuration-alert" role="alert">
+            <strong>El acceso no está disponible.</strong>
+            <p>Verifica la configuración del sistema e inténtalo nuevamente.</p>
+          </div>
+        ) : null}
       </section>
     </main>
   );
