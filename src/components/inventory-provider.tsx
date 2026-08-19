@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   archiveProductAction,
@@ -16,14 +17,17 @@ import {
   createCategoryAction,
   createMovementReasonAction,
   createProductAction,
+  createProductSubstituteAction,
   createSupplierAction,
   createWarehouseAction,
   deleteCategoryAction,
   deleteMovementAction,
   deleteMovementReasonAction,
   deleteProductAction,
+  deleteProductSubstituteAction,
   importInventoryProductsAction,
   recordMovementAction,
+  transferInventoryStockAction,
   updateOrganizationAction,
   updateMovementAction,
   updateMovementReasonAction,
@@ -42,8 +46,10 @@ import type {
   OrganizationInput,
   Product,
   ProductInput,
+  ProductSubstituteInput,
   ProductUpdateInput,
   SupplierInput,
+  TransferInput,
   WarehouseInput,
   WorkspaceData,
 } from "@/lib/types";
@@ -74,6 +80,12 @@ interface InventoryContextValue {
   createProduct: (
     input: ProductInput,
   ) => Promise<ActionResult<WorkspaceData>>;
+  createProductSubstitute: (
+    input: ProductSubstituteInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  deleteProductSubstitute: (
+    relationId: string,
+  ) => Promise<ActionResult<WorkspaceData>>;
   updateProduct: (
     input: ProductUpdateInput,
   ) => Promise<ActionResult<WorkspaceData>>;
@@ -86,6 +98,9 @@ interface InventoryContextValue {
   ) => Promise<ActionResult<WorkspaceData>>;
   recordMovement: (
     input: MovementInput,
+  ) => Promise<ActionResult<WorkspaceData>>;
+  transferStock: (
+    input: TransferInput,
   ) => Promise<ActionResult<WorkspaceData>>;
   updateMovement: (
     input: MovementUpdateInput,
@@ -135,7 +150,10 @@ export function InventoryProvider({
   initialWorkspace: WorkspaceData;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [workspace, setWorkspace] = useState(initialWorkspace);
+  const [previousInitialWorkspace, setPreviousInitialWorkspace] =
+    useState(initialWorkspace);
   const [isMutating, setIsMutating] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [productDialog, setProductDialog] = useState<{
@@ -148,6 +166,11 @@ export function InventoryProvider({
     movement: InventoryMovement | null;
   }>({ open: false, product: null, movement: null });
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (initialWorkspace !== previousInitialWorkspace) {
+    setPreviousInitialWorkspace(initialWorkspace);
+    setWorkspace(initialWorkspace);
+  }
 
   const showToast = useCallback(
     (
@@ -175,15 +198,19 @@ export function InventoryProvider({
 
   const applyRemoteResult = useCallback(
     (result: ActionResult<WorkspaceData>) => {
-      if (result.ok && result.data) {
+      if (result.data) {
         setWorkspace(result.data);
+      } else if (result.ok) {
+        router.refresh();
+      }
+      if (result.ok) {
         showToast("success", result.message);
       } else {
         showToast("error", "No se pudo completar la acción", result.message);
       }
       return result;
     },
-    [showToast],
+    [router, showToast],
   );
 
   const runRemote = useCallback(
@@ -216,6 +243,18 @@ export function InventoryProvider({
     [runRemote],
   );
 
+  const createProductSubstitute = useCallback(
+    (input: ProductSubstituteInput) =>
+      runRemote(() => createProductSubstituteAction(input)),
+    [runRemote],
+  );
+
+  const deleteProductSubstitute = useCallback(
+    (relationId: string) =>
+      runRemote(() => deleteProductSubstituteAction(relationId)),
+    [runRemote],
+  );
+
   const updateProduct = useCallback(
     (input: ProductUpdateInput) =>
       runRemote(() => updateProductAction(input)),
@@ -237,6 +276,12 @@ export function InventoryProvider({
   const recordMovement = useCallback(
     (input: MovementInput) =>
       runRemote(() => recordMovementAction(input)),
+    [runRemote],
+  );
+
+  const transferStock = useCallback(
+    (input: TransferInput) =>
+      runRemote(() => transferInventoryStockAction(input)),
     [runRemote],
   );
 
@@ -338,10 +383,13 @@ export function InventoryProvider({
         setMovementDialog({ open: false, product: null, movement: null }),
       dismissToast: () => setToast(null),
       createProduct,
+      createProductSubstitute,
+      deleteProductSubstitute,
       updateProduct,
       archiveProduct,
       deleteProduct,
       recordMovement,
+      transferStock,
       updateMovement,
       deleteMovement,
       updateOrganization,
@@ -360,6 +408,7 @@ export function InventoryProvider({
       createCategory,
       createMovementReason,
       createProduct,
+      createProductSubstitute,
       createSupplier,
       createWarehouse,
       importInventoryProducts,
@@ -368,10 +417,12 @@ export function InventoryProvider({
       deleteMovement,
       deleteMovementReason,
       deleteProduct,
+      deleteProductSubstitute,
       isMutating,
       movementDialog,
       productDialog,
       recordMovement,
+      transferStock,
       toast,
       updateOrganization,
       updateMovement,

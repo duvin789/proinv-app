@@ -92,7 +92,7 @@ export async function GET(
     })
       .rotate()
       .resize(size.width, size.height, {
-        fit: "cover",
+        fit: parsedSize.data === "preview" ? "inside" : "cover",
         position: "centre",
         withoutEnlargement: true,
       })

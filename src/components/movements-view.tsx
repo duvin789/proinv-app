@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import {
   useDeferredValue,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -36,6 +37,15 @@ import {
   movementLabels,
   movementShortLabels,
 } from "@/lib/inventory";
+import {
+  defaultPreferences,
+  movementPageSizeOptions,
+  preferencesChangedEvent,
+  readPreferences,
+  savePreferences,
+  type AppPreferences,
+  type MovementPageSize,
+} from "@/lib/preferences";
 import type { InventoryMovement, MovementType } from "@/lib/types";
 
 type MovementFilter =
@@ -44,8 +54,6 @@ type MovementFilter =
   | "sale"
   | "adjustments"
   | "returns";
-
-const pageSize = 12;
 
 function matchesType(type: MovementType, filter: MovementFilter) {
   if (filter === "all") return true;
@@ -71,6 +79,9 @@ export function MovementsView() {
   const deferredQuery = useDeferredValue(query);
   const [filter, setFilter] = useState<MovementFilter>("all");
   const [page, setPage] = useState(1);
+  const [preferences, setPreferences] = useState<AppPreferences>(() => ({
+    ...defaultPreferences,
+  }));
   const [detailMovementId, setDetailMovementId] = useState<string | null>(null);
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(
     null,
@@ -78,6 +89,17 @@ export function MovementsView() {
   const canOperate = workspace.viewer.role !== "viewer";
   const canManage =
     workspace.viewer.role === "owner" || workspace.viewer.role === "admin";
+  const pageSize = preferences.movementsPageSize;
+
+  useEffect(() => {
+    const syncPreferences = () => setPreferences(readPreferences());
+    const frame = window.requestAnimationFrame(syncPreferences);
+    window.addEventListener(preferencesChangedEvent, syncPreferences);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener(preferencesChangedEvent, syncPreferences);
+    };
+  }, []);
 
   const productMap = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
@@ -155,6 +177,14 @@ export function MovementsView() {
       },
     );
   }, [movements]);
+
+  function changePageSize(nextPageSize: MovementPageSize) {
+    setPage(1);
+    savePreferences({
+      ...readPreferences(),
+      movementsPageSize: nextPageSize,
+    });
+  }
 
   async function exportMovements() {
     await downloadTableWorkbook(
@@ -364,12 +394,32 @@ export function MovementsView() {
               </table>
             </div>
             <div className="pagination">
-              <span>
-                Mostrando {(safePage - 1) * pageSize + 1}-
-                {Math.min(safePage * pageSize, filteredMovements.length)} de{" "}
-                {filteredMovements.length}
-              </span>
-              <div>
+              <div className="pagination-meta">
+                <span>
+                  Mostrando {(safePage - 1) * pageSize + 1}-
+                  {Math.min(safePage * pageSize, filteredMovements.length)} de{" "}
+                  {filteredMovements.length}
+                </span>
+                <label className="pagination-size-control">
+                  <span>Por página</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) =>
+                      changePageSize(
+                        Number(event.target.value) as MovementPageSize,
+                      )
+                    }
+                    aria-label="Movimientos por página"
+                  >
+                    {movementPageSizeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="pagination-controls">
                 <button
                   type="button"
                   className="icon-button"
@@ -380,7 +430,7 @@ export function MovementsView() {
                 >
                   <CaretLeftIcon size={18} weight="bold" />
                 </button>
-                <span>
+                <span className="pagination-page-indicator">
                   {safePage} / {pageCount}
                 </span>
                 <button

@@ -12,14 +12,15 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import Image from "next/image";
 import {
   useDeferredValue,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 
 import { useInventory } from "@/components/inventory-provider";
+import { ProductImageQuickView } from "@/components/product-image-quick-view";
 import { downloadTableWorkbook } from "@/lib/excel";
 import {
   formatCurrency,
@@ -30,12 +31,19 @@ import {
   getStockStatus,
   productMargin,
 } from "@/lib/inventory";
+import {
+  defaultPreferences,
+  preferencesChangedEvent,
+  productPageSizeOptions,
+  readPreferences,
+  savePreferences,
+  type AppPreferences,
+  type ProductPageSize,
+} from "@/lib/preferences";
 import type { Product } from "@/lib/types";
 
 type StockFilter = "active" | "healthy" | "low" | "out" | "archived";
 type SortOption = "name" | "stock_asc" | "stock_desc" | "value_desc";
-
-const pageSize = 8;
 
 const statusLabels = {
   healthy: "Disponible",
@@ -59,6 +67,9 @@ export function ProductsView() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sort, setSort] = useState<SortOption>("name");
   const [page, setPage] = useState(1);
+  const [preferences, setPreferences] = useState<AppPreferences>(() => ({
+    ...defaultPreferences,
+  }));
   const [deletingProductId, setDeletingProductId] = useState<string | null>(
     null,
   );
@@ -66,6 +77,17 @@ export function ProductsView() {
   const canOperate = workspace.viewer.role !== "viewer";
   const canManage =
     workspace.viewer.role === "owner" || workspace.viewer.role === "admin";
+  const pageSize = preferences.productsPageSize;
+
+  useEffect(() => {
+    const syncPreferences = () => setPreferences(readPreferences());
+    const frame = window.requestAnimationFrame(syncPreferences);
+    window.addEventListener(preferencesChangedEvent, syncPreferences);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener(preferencesChangedEvent, syncPreferences);
+    };
+  }, []);
 
   const categoryMap = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
@@ -128,6 +150,14 @@ export function ProductsView() {
   function changeFilter(next: StockFilter) {
     setStockFilter(next);
     setPage(1);
+  }
+
+  function changePageSize(nextPageSize: ProductPageSize) {
+    setPage(1);
+    savePreferences({
+      ...readPreferences(),
+      productsPageSize: nextPageSize,
+    });
   }
 
   async function exportProducts() {
@@ -340,13 +370,17 @@ Escribe ELIMINAR para confirmar.`,
                         <td data-label="Producto">
                           <div className="table-product">
                             {product.imageUrl ? (
-                              <Image
-                                className="product-monogram product-thumbnail"
-                                src={product.imageUrl}
-                                alt=""
-                                width={56}
-                                height={56}
-                                unoptimized
+                              <ProductImageQuickView
+                                key={`${product.id}:${product.imagePath}`}
+                                productId={product.id}
+                                productName={product.name}
+                                thumbnailUrl={`${product.imageUrl}&v=${encodeURIComponent(product.imagePath || product.updatedAt)}`}
+                                imageVersion={
+                                  product.imagePath || product.updatedAt
+                                }
+                                quickPreviewEnabled={
+                                  preferences.imageQuickPreview
+                                }
                               />
                             ) : (
                               <span
@@ -503,12 +537,32 @@ Escribe ELIMINAR para confirmar.`,
               </table>
             </div>
             <div className="pagination">
-              <span>
-                Mostrando {(safePage - 1) * pageSize + 1}-
-                {Math.min(safePage * pageSize, filteredProducts.length)} de{" "}
-                {filteredProducts.length}
-              </span>
-              <div>
+              <div className="pagination-meta">
+                <span>
+                  Mostrando {(safePage - 1) * pageSize + 1}-
+                  {Math.min(safePage * pageSize, filteredProducts.length)} de{" "}
+                  {filteredProducts.length}
+                </span>
+                <label className="pagination-size-control">
+                  <span>Por página</span>
+                  <select
+                    value={pageSize}
+                    onChange={(event) =>
+                      changePageSize(
+                        Number(event.target.value) as ProductPageSize,
+                      )
+                    }
+                    aria-label="Productos por página"
+                  >
+                    {productPageSizeOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="pagination-controls">
                 <button
                   type="button"
                   className="icon-button"
@@ -518,7 +572,7 @@ Escribe ELIMINAR para confirmar.`,
                 >
                   <CaretLeftIcon size={18} weight="bold" />
                 </button>
-                <span>
+                <span className="pagination-page-indicator">
                   {safePage} / {pageCount}
                 </span>
                 <button

@@ -19,8 +19,10 @@ import type {
   MovementUpdateInput,
   OrganizationInput,
   ProductInput,
+  ProductSubstituteInput,
   ProductUpdateInput,
   SupplierInput,
+  TransferInput,
   WarehouseInput,
   WorkspaceData,
 } from "@/lib/types";
@@ -88,6 +90,37 @@ const movementUpdateSchema = movementSchema
       "return_out",
     ]),
   });
+
+const transferSchema = z
+  .object({
+    productId: z.string().uuid(),
+    fromWarehouseId: z.string().uuid(),
+    toWarehouseId: z.string().uuid(),
+    quantity: z.number().positive(),
+    note: optionalText,
+    reason: z.string().trim().max(80).optional(),
+  })
+  .refine(
+    (transfer) => transfer.fromWarehouseId !== transfer.toWarehouseId,
+    {
+      message: "El almacén de destino debe ser diferente al de origen.",
+      path: ["toWarehouseId"],
+    },
+  );
+
+const productSubstituteSchema = z
+  .object({
+    productId: z.string().uuid(),
+    substituteProductId: z.string().uuid(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .refine(
+    (relation) => relation.productId !== relation.substituteProductId,
+    {
+      message: "Elige dos productos diferentes.",
+      path: ["substituteProductId"],
+    },
+  );
 
 const organizationSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -159,6 +192,16 @@ function dataError<T>(message: string): ActionResult<T> {
   return { ok: false, message };
 }
 
+async function workspaceDataError(
+  message: string,
+): Promise<ActionResult<WorkspaceData>> {
+  try {
+    return { ok: false, message, data: await loadWorkspaceData() };
+  } catch {
+    return dataError(message);
+  }
+}
+
 const operatorRoles: MemberRole[] = ["owner", "admin", "operator"];
 const administratorRoles: MemberRole[] = ["owner", "admin"];
 
@@ -189,12 +232,19 @@ async function ensureSupabase<T>(
 async function refreshedWorkspace(
   message: string,
 ): Promise<ActionResult<WorkspaceData>> {
-  revalidatePath("/", "layout");
-  return {
-    ok: true,
-    message,
-    data: await loadWorkspaceData(),
-  };
+  try {
+    revalidatePath("/", "layout");
+    return {
+      ok: true,
+      message,
+      data: await loadWorkspaceData(),
+    };
+  } catch {
+    return {
+      ok: true,
+      message: `${message} La operación quedó guardada y la vista se actualizará nuevamente.`,
+    };
+  }
 }
 
 function readableError(error: unknown) {
@@ -208,6 +258,10 @@ type SupabaseServerClient = Awaited<
 >;
 
 function normalizedSupplierName(value: string) {
+  return value.trim().toLocaleLowerCase("es");
+}
+
+function normalizedUnit(value: string) {
   return value.trim().toLocaleLowerCase("es");
 }
 
@@ -439,6 +493,19 @@ export async function updateProductAction(
       (product) => product.id === value.id,
     );
     if (!existingProduct) return dataError("El producto ya no está disponible.");
+    const hasSubstituteRelations = workspace.productSubstitutes.some(
+      (relation) =>
+        relation.productId === value.id ||
+        relation.substituteProductId === value.id,
+    );
+    if (
+      hasSubstituteRelations &&
+      normalizedUnit(existingProduct.unit) !== normalizedUnit(value.unit)
+    ) {
+      return dataError(
+        "Elimina primero las relaciones de sustitución antes de cambiar la unidad de medida.",
+      );
+    }
 
     const supplierId = await resolveSupplierId(
       supabase,
@@ -585,8 +652,38 @@ export async function recordMovementAction(
       p_reference: value.reason || null,
     });
 
-    if (error) return dataError(error.message);
+    if (error) return workspaceDataError(error.message);
     return refreshedWorkspace("Movimiento registrado. El stock fue recalculado.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function transferInventoryStockAction(
+  input: TransferInput,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(operatorRoles);
+  if (configured) return configured;
+
+  const parsed = transferSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const value = parsed.data;
+    const { error } = await supabase.rpc("transfer_inventory_stock", {
+      p_product_id: value.productId,
+      p_from_warehouse_id: value.fromWarehouseId,
+      p_to_warehouse_id: value.toWarehouseId,
+      p_quantity: value.quantity,
+      p_note: value.note || null,
+      p_reference: value.reason || null,
+    });
+
+    if (error) return workspaceDataError(error.message);
+    return refreshedWorkspace(
+      "Traslado registrado. Las existencias de ambos almacenes fueron actualizadas.",
+    );
   } catch (error) {
     return dataError(readableError(error));
   }
@@ -886,6 +983,98 @@ export async function createWarehouseAction(
 
     if (error) return dataError(error.message);
     return refreshedWorkspace("Almacén creado y disponible para el inventario.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function createProductSubstituteAction(
+  input: ProductSubstituteInput,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = productSubstituteSchema.safeParse(input);
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const [workspace, supabase] = await Promise.all([
+      loadWorkspaceData(),
+      createSupabaseServerClient(),
+    ]);
+    const value = parsed.data;
+    const product = workspace.products.find(
+      (item) => item.id === value.productId,
+    );
+    const substitute = workspace.products.find(
+      (item) => item.id === value.substituteProductId,
+    );
+    if (!product?.active || !substitute?.active) {
+      return dataError("Ambos productos deben existir y estar activos.");
+    }
+    if (normalizedUnit(product.unit) !== normalizedUnit(substitute.unit)) {
+      return dataError(
+        "Los productos sustitutos deben usar la misma unidad de medida.",
+      );
+    }
+
+    const duplicate = workspace.productSubstitutes.some(
+      (relation) =>
+        (relation.productId === value.productId &&
+          relation.substituteProductId === value.substituteProductId) ||
+        (relation.productId === value.substituteProductId &&
+          relation.substituteProductId === value.productId),
+    );
+    if (duplicate) {
+      return dataError("Estos productos ya están vinculados como sustitutos.");
+    }
+
+    const [productId, substituteProductId] = [
+      value.productId,
+      value.substituteProductId,
+    ].toSorted();
+    const { error } = await supabase.from("product_substitutes").insert({
+      organization_id: workspace.organization.id,
+      product_id: productId,
+      substitute_product_id: substituteProductId,
+      note: value.note || null,
+    });
+
+    if (error?.code === "23505") {
+      return dataError("Estos productos ya están vinculados como sustitutos.");
+    }
+    if (error) return dataError(error.message);
+    return refreshedWorkspace("Sustituto configurado para las alertas de stock.");
+  } catch (error) {
+    return dataError(readableError(error));
+  }
+}
+
+export async function deleteProductSubstituteAction(
+  relationId: string,
+): Promise<ActionResult<WorkspaceData>> {
+  const configured = await ensureSupabase<WorkspaceData>(administratorRoles);
+  if (configured) return configured;
+
+  const parsed = z.string().uuid().safeParse(relationId);
+  if (!parsed.success) return dataError("La relación seleccionada no es válida.");
+
+  try {
+    const [workspace, supabase] = await Promise.all([
+      loadWorkspaceData(),
+      createSupabaseServerClient(),
+    ]);
+    const { data, error } = await supabase
+      .from("product_substitutes")
+      .delete()
+      .eq("id", parsed.data)
+      .eq("organization_id", workspace.organization.id)
+      .select("id")
+      .maybeSingle();
+
+    if (error) return dataError(error.message);
+    if (!data) return dataError("La relación ya no está disponible.");
+    return refreshedWorkspace("Relación de sustitución eliminada.");
   } catch (error) {
     return dataError(readableError(error));
   }

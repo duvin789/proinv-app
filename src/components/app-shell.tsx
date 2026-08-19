@@ -27,6 +27,7 @@ import { signOutAction } from "@/app/actions/auth";
 import { useInventory } from "@/components/inventory-provider";
 import {
   applyPreferences,
+  defaultPreferences,
   preferencesChangedEvent,
   readPreferences,
   savePreferences,
@@ -109,11 +110,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const [preferences, setPreferences] = useState<AppPreferences>({
-    theme: "system",
-    density: "comfortable",
-    stockAlerts: true,
-  });
+  const [preferences, setPreferences] = useState<AppPreferences>(() => ({
+    ...defaultPreferences,
+  }));
   const page = pageTitles[pathname] || pageTitles["/dashboard"];
   const canOperate = workspace.viewer.role !== "viewer";
 
@@ -209,7 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const nextTheme = theme === "light" ? "dark" : "light";
     setTheme(nextTheme);
     const nextPreferences: AppPreferences = {
-      ...preferences,
+      ...readPreferences(),
       theme: nextTheme,
     };
     setPreferences(nextPreferences);

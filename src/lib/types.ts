@@ -97,6 +97,17 @@ export interface InventoryBalance {
   updatedAt: string;
 }
 
+export interface ProductSubstitute {
+  id: string;
+  organizationId: string;
+  productId: string;
+  substituteProductId: string;
+  note: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface InventoryMovement {
   id: string;
   organizationId: string;
@@ -125,6 +136,8 @@ export interface WorkspaceData {
   suppliers: Supplier[];
   warehouses: Warehouse[];
   products: Product[];
+  inventoryBalances: InventoryBalance[];
+  productSubstitutes: ProductSubstitute[];
   movements: InventoryMovement[];
 }
 
@@ -187,6 +200,21 @@ export interface MovementInput {
   saleUnitPrice?: number;
   note?: string;
   reason?: string;
+}
+
+export interface TransferInput {
+  productId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: number;
+  note?: string;
+  reason?: string;
+}
+
+export interface ProductSubstituteInput {
+  productId: string;
+  substituteProductId: string;
+  note?: string;
 }
 
 export interface MovementUpdateInput {

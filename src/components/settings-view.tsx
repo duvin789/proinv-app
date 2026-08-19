@@ -2,6 +2,7 @@
 
 import {
   ArrowsDownUpIcon,
+  ArrowsLeftRightIcon,
   BuildingsIcon,
   CheckCircleIcon,
   DatabaseIcon,
@@ -22,6 +23,7 @@ import { useMemo, useState } from "react";
 import { useInventory } from "@/components/inventory-provider";
 import { DataManagementPanel } from "@/components/data-management-panel";
 import { PreferencesPanel } from "@/components/preferences-panel";
+import { ProductSubstitutesPanel } from "@/components/product-substitutes-panel";
 import { formatNumber } from "@/lib/format";
 
 const categoryColors = [
@@ -302,6 +304,10 @@ export function SettingsView() {
         <a href="#almacenes">
           <StorefrontIcon size={18} />
           Almacenes
+        </a>
+        <a href="#sustitutos">
+          <ArrowsLeftRightIcon size={18} />
+          Sustitutos
         </a>
         <a href="#datos">
           <FileXlsIcon size={18} />
@@ -897,6 +903,22 @@ export function SettingsView() {
             Las existencias se controlan por almacén y cada movimiento conserva
             la ubicación donde fue registrado.
           </p>
+        </section>
+
+        <section id="sustitutos" className="panel settings-section">
+          <div className="settings-section-heading">
+            <div className="settings-section-icon">
+              <ArrowsLeftRightIcon size={22} weight="duotone" />
+            </div>
+            <div>
+              <h2>Productos sustitutos</h2>
+              <p>
+                Define alternativas confiables que el sistema puede sugerir
+                cuando falte stock en el almacén elegido.
+              </p>
+            </div>
+          </div>
+          <ProductSubstitutesPanel />
         </section>
 
         <section id="datos" className="panel settings-section">

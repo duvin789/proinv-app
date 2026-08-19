@@ -1,13 +1,19 @@
 "use client";
 
 import {
+  ArrowsDownUpIcon,
   BellSimpleIcon,
+  ImageSquareIcon,
+  PackageIcon,
   RowsIcon,
   SunIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import {
+  defaultPreferences,
+  movementPageSizeOptions,
+  productPageSizeOptions,
   readPreferences,
   savePreferences,
   type AppPreferences,
@@ -15,9 +21,7 @@ import {
 
 export function PreferencesPanel() {
   const [preferences, setPreferences] = useState<AppPreferences>(() => ({
-    theme: "system",
-    density: "comfortable",
-    stockAlerts: true,
+    ...defaultPreferences,
   }));
 
   useEffect(() => {
@@ -28,11 +32,9 @@ export function PreferencesPanel() {
   }, []);
 
   function update(next: Partial<AppPreferences>) {
-    setPreferences((current) => {
-      const value = { ...current, ...next };
-      savePreferences(value);
-      return value;
-    });
+    const value = { ...readPreferences(), ...next };
+    setPreferences(value);
+    savePreferences(value);
   }
 
   return (
@@ -78,6 +80,80 @@ export function PreferencesPanel() {
           <option value="comfortable">Cómoda</option>
           <option value="compact">Compacta</option>
         </select>
+      </label>
+
+      <label className="preference-row">
+        <span className="preference-icon" aria-hidden="true">
+          <PackageIcon size={20} weight="duotone" />
+        </span>
+        <span>
+          <strong>Productos por página</strong>
+          <small>Define cuántos productos aparecen antes de paginar.</small>
+        </span>
+        <select
+          value={preferences.productsPageSize}
+          onChange={(event) =>
+            update({
+              productsPageSize: Number(
+                event.target.value,
+              ) as AppPreferences["productsPageSize"],
+            })
+          }
+          aria-label="Productos por página"
+        >
+          {productPageSizeOptions.map((option) => (
+            <option key={option} value={option}>
+              {option} productos
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="preference-row">
+        <span className="preference-icon" aria-hidden="true">
+          <ArrowsDownUpIcon size={20} weight="duotone" />
+        </span>
+        <span>
+          <strong>Movimientos por página</strong>
+          <small>Elige cuánto historial operativo ves en cada página.</small>
+        </span>
+        <select
+          value={preferences.movementsPageSize}
+          onChange={(event) =>
+            update({
+              movementsPageSize: Number(
+                event.target.value,
+              ) as AppPreferences["movementsPageSize"],
+            })
+          }
+          aria-label="Movimientos por página"
+        >
+          {movementPageSizeOptions.map((option) => (
+            <option key={option} value={option}>
+              {option} movimientos
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="preference-row preference-toggle-row">
+        <span className="preference-icon" aria-hidden="true">
+          <ImageSquareIcon size={20} weight="duotone" />
+        </span>
+        <span>
+          <strong>Vista rápida de imágenes</strong>
+          <small>
+            Amplía la fotografía al pasar el mouse o enfocar la miniatura.
+          </small>
+        </span>
+        <input
+          type="checkbox"
+          checked={preferences.imageQuickPreview}
+          onChange={(event) =>
+            update({ imageQuickPreview: event.target.checked })
+          }
+          aria-label="Activar vista rápida de imágenes"
+        />
       </label>
 
       <label className="preference-row preference-toggle-row">

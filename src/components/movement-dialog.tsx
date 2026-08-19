@@ -2,8 +2,12 @@
 
 import {
   ArrowDownIcon,
+  ArrowRightIcon,
   ArrowUpIcon,
+  ArrowsLeftRightIcon,
   InfoIcon,
+  PackageIcon,
+  StorefrontIcon,
 } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 
@@ -36,6 +40,7 @@ export function MovementDialog() {
     movementDialog,
     closeMovementDialog,
     recordMovement,
+    transferStock,
     updateMovement,
   } = useInventory();
   const [form, setForm] = useState(() => {
@@ -79,12 +84,103 @@ export function MovementDialog() {
   );
   const incoming = isIncomingMovement(form.type);
   const quantity = Number(form.quantity) || 0;
-  const baseStock = editingMovement?.stockBefore ?? product?.currentStock ?? 0;
+  const balanceMap = useMemo(
+    () =>
+      new Map(
+        workspace.inventoryBalances.map((balance) => [
+          `${balance.productId}:${balance.warehouseId}`,
+          balance,
+        ]),
+      ),
+    [workspace.inventoryBalances],
+  );
+  const warehouseMap = useMemo(
+    () =>
+      new Map(
+        workspace.warehouses.map((warehouse) => [warehouse.id, warehouse]),
+      ),
+    [workspace.warehouses],
+  );
+  const selectedBalance = product
+    ? balanceMap.get(`${product.id}:${form.warehouseId}`)
+    : undefined;
+  const baseStock =
+    editingMovement?.stockBefore ?? selectedBalance?.currentStock ?? 0;
   const projectedStock = baseStock + (incoming ? quantity : -quantity);
+  const shortfall = Math.max(0, quantity - baseStock);
+  const needsStockHelp =
+    !isEditing && !incoming && Boolean(product) && shortfall > 0;
+  const selectedWarehouse = warehouseMap.get(form.warehouseId);
+  const otherWarehouseAvailability = useMemo(() => {
+    if (!product) return [];
+    return workspace.warehouses
+      .filter((warehouse) => warehouse.id !== form.warehouseId)
+      .map((warehouse) => ({
+        warehouse,
+        stock:
+          balanceMap.get(`${product.id}:${warehouse.id}`)?.currentStock ?? 0,
+      }))
+      .filter((availability) => availability.stock > 0)
+      .toSorted((a, b) => b.stock - a.stock);
+  }, [balanceMap, form.warehouseId, product, workspace.warehouses]);
+  const substituteAvailability = useMemo(() => {
+    if (!product) return [];
+
+    return workspace.productSubstitutes.flatMap((relation) => {
+      const substituteId =
+        relation.productId === product.id
+          ? relation.substituteProductId
+          : relation.substituteProductId === product.id
+            ? relation.productId
+            : null;
+      if (!substituteId) return [];
+      const substitute = workspace.products.find(
+        (item) =>
+          item.id === substituteId &&
+          item.active &&
+          item.unit.trim().toLocaleLowerCase("es") ===
+            product.unit.trim().toLocaleLowerCase("es"),
+      );
+      if (!substitute) return [];
+
+      const availability = workspace.warehouses
+        .map((warehouse) => ({
+          warehouse,
+          stock:
+            balanceMap.get(`${substitute.id}:${warehouse.id}`)?.currentStock ??
+            0,
+        }))
+        .filter((item) => item.stock > 0)
+        .toSorted((a, b) => {
+          const aFits = a.stock >= quantity ? 1 : 0;
+          const bFits = b.stock >= quantity ? 1 : 0;
+          if (aFits !== bFits) return bFits - aFits;
+          if (a.warehouse.id === form.warehouseId) return -1;
+          if (b.warehouse.id === form.warehouseId) return 1;
+          return b.stock - a.stock;
+        });
+      const best = availability[0];
+      if (!best) return [];
+      return [{ relation, product: substitute, ...best }];
+    });
+  }, [
+    balanceMap,
+    form.warehouseId,
+    product,
+    quantity,
+    workspace.productSubstitutes,
+    workspace.products,
+    workspace.warehouses,
+  ]);
   const unitAmount =
     form.type === "sale"
       ? Number(form.saleUnitPrice) || 0
-      : Number(form.unitCost) || 0;
+      : incoming
+        ? Number(form.unitCost) || 0
+        : editingMovement?.unitCost ??
+          selectedBalance?.averageCost ??
+          product?.averageCost ??
+          0;
 
   const movementOptions = useMemo<
     Array<{ value: EditableMovementType; label: string }>
@@ -114,14 +210,43 @@ export function MovementDialog() {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
-  function selectProduct(productId: string) {
+  function selectProduct(productId: string, warehouseId?: string) {
     const selected = workspace.products.find((item) => item.id === productId);
     setForm((current) => ({
       ...current,
       productId,
+      warehouseId: warehouseId || current.warehouseId,
       unitCost: String(selected?.purchasePrice || 0),
       saleUnitPrice: String(selected?.salePrice || 0),
     }));
+    setError("");
+  }
+
+  function selectWarehouse(warehouseId: string) {
+    updateField("warehouseId", warehouseId);
+    setError("");
+  }
+
+  async function moveStockHere(sourceWarehouseId: string, available: number) {
+    if (!product || !selectedWarehouse || shortfall <= 0) return;
+    const sourceWarehouse = warehouseMap.get(sourceWarehouseId);
+    if (!sourceWarehouse) return;
+    const quantityToMove = Math.min(shortfall, available);
+    const confirmed = window.confirm(
+      `¿Trasladar ${formatNumber(quantityToMove, locale)} ${product.unit} de “${product.name}” desde ${sourceWarehouse.name} hacia ${selectedWarehouse.name}?\n\nEl traslado se guardará de inmediato aunque después canceles este movimiento.`,
+    );
+    if (!confirmed) return;
+
+    setError("");
+    const result = await transferStock({
+      productId: product.id,
+      fromWarehouseId: sourceWarehouse.id,
+      toWarehouseId: selectedWarehouse.id,
+      quantity: quantityToMove,
+      reason: "Reposición entre almacenes",
+      note: "Traslado iniciado desde la asistencia de stock.",
+    });
+    if (!result.ok) setError(result.message);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -209,17 +334,24 @@ export function MovementDialog() {
               <span>Almacén</span>
               <select
                 value={form.warehouseId}
-                onChange={(event) =>
-                  updateField("warehouseId", event.target.value)
-                }
+                onChange={(event) => selectWarehouse(event.target.value)}
                 required
                 disabled={isEditing}
               >
-                {workspace.warehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                  </option>
-                ))}
+                {workspace.warehouses.map((warehouse) => {
+                  const warehouseStock = product
+                    ? (balanceMap.get(`${product.id}:${warehouse.id}`)
+                        ?.currentStock ?? 0)
+                    : 0;
+                  return (
+                    <option key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                      {product
+                        ? ` · ${formatNumber(warehouseStock, locale)} ${product.unit}`
+                        : ""}
+                    </option>
+                  );
+                })}
               </select>
             </label>
             <fieldset className="movement-operation-fieldset field-span-2">
@@ -321,7 +453,10 @@ export function MovementDialog() {
                 <span>Costo aplicado</span>
                 <div className="read-only-field">
                   {formatCurrency(
-                    product?.averageCost || 0,
+                    editingMovement?.unitCost ??
+                      selectedBalance?.averageCost ??
+                      product?.averageCost ??
+                      0,
                     currency,
                     locale,
                   )}
@@ -341,6 +476,145 @@ export function MovementDialog() {
           </div>
         </div>
 
+        {product && selectedWarehouse && !isEditing ? (
+          <div className="stock-location-summary" aria-live="polite">
+            <span className="stock-location-icon" aria-hidden="true">
+              <StorefrontIcon size={19} weight="duotone" />
+            </span>
+            <span>
+              <small>Disponible en {selectedWarehouse.name}</small>
+              <strong>
+                {formatNumber(baseStock, locale)} {product.unit}
+              </strong>
+            </span>
+            <span className="stock-location-total">
+              {formatNumber(product.currentStock, locale)} {product.unit} en
+              toda la empresa
+            </span>
+          </div>
+        ) : null}
+
+        {needsStockHelp && product && selectedWarehouse ? (
+          <section
+            className="stock-assistant"
+            aria-labelledby="stock-assistant-title"
+          >
+            <div className="stock-assistant-heading">
+              <span aria-hidden="true">
+                <InfoIcon size={20} weight="fill" />
+              </span>
+              <div>
+                <strong id="stock-assistant-title">
+                  Faltan {formatNumber(shortfall, locale)} {product.unit} en {" "}
+                  {selectedWarehouse.name}
+                </strong>
+                <p>
+                  Revisa primero el mismo producto en otros almacenes. Las
+                  alternativas aparecen después y solo si fueron configuradas.
+                </p>
+              </div>
+            </div>
+
+            {otherWarehouseAvailability.length > 0 ? (
+              <div className="stock-assistant-group">
+                <div className="stock-assistant-group-title">
+                  <StorefrontIcon size={17} weight="duotone" />
+                  <strong>Mismo producto en otros almacenes</strong>
+                </div>
+                <div className="stock-assistant-list">
+                  {otherWarehouseAvailability.map(({ warehouse, stock }) => (
+                    <article key={warehouse.id} className="stock-assistant-row">
+                      <div>
+                        <strong>{warehouse.name}</strong>
+                        <span>
+                          {formatNumber(stock, locale)} {product.unit} disponibles
+                        </span>
+                      </div>
+                      <div className="stock-assistant-actions">
+                        {stock >= quantity ? (
+                          <button
+                            type="button"
+                            className="button button-secondary stock-assistant-button"
+                            onClick={() => selectWarehouse(warehouse.id)}
+                            disabled={isMutating}
+                            aria-label={`Usar ${warehouse.name} para este movimiento`}
+                          >
+                            Usar este almacén
+                            <ArrowRightIcon size={15} weight="bold" />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="button button-secondary stock-assistant-button"
+                          onClick={() => moveStockHere(warehouse.id, stock)}
+                          disabled={isMutating}
+                          aria-label={`Trasladar ${formatNumber(Math.min(shortfall, stock), locale)} ${product.unit} de ${warehouse.name} a ${selectedWarehouse.name}`}
+                        >
+                          <ArrowsLeftRightIcon size={15} weight="bold" />
+                          Trasladar {formatNumber(Math.min(shortfall, stock), locale)}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {substituteAvailability.length > 0 ? (
+              <div className="stock-assistant-group stock-assistant-substitutes">
+                <div className="stock-assistant-group-title">
+                  <PackageIcon size={17} weight="duotone" />
+                  <strong>Sustitutos configurados</strong>
+                </div>
+                <div className="stock-assistant-list">
+                  {substituteAvailability.map((alternative) => (
+                    <article
+                      key={alternative.relation.id}
+                      className="stock-assistant-row"
+                    >
+                      <div>
+                        <strong>{alternative.product.name}</strong>
+                        <span>
+                          {alternative.product.sku} · {alternative.warehouse.name}
+                          {" · "}
+                          {formatNumber(alternative.stock, locale)} {" "}
+                          {alternative.product.unit}
+                        </span>
+                        {alternative.relation.note ? (
+                          <small>{alternative.relation.note}</small>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        className="button button-secondary stock-assistant-button"
+                        onClick={() =>
+                          selectProduct(
+                            alternative.product.id,
+                            alternative.warehouse.id,
+                          )
+                        }
+                        disabled={isMutating}
+                        aria-label={`Usar ${alternative.product.name} de ${alternative.warehouse.name} como alternativa`}
+                      >
+                        Usar alternativa
+                        <ArrowRightIcon size={15} weight="bold" />
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {otherWarehouseAvailability.length === 0 &&
+            substituteAvailability.length === 0 ? (
+              <p className="stock-assistant-empty">
+                No hay existencias en otros almacenes ni sustitutos configurados
+                con stock. Registra una entrada o configura una alternativa.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
         <div
           className={`movement-preview ${projectedStock < 0 ? "is-negative" : ""}`}
           aria-live="polite"
@@ -353,7 +627,11 @@ export function MovementDialog() {
             )}
           </div>
           <div>
-            <span>{isEditing ? "Stock anterior" : "Stock actual"}</span>
+            <span>
+              {isEditing
+                ? "Stock anterior"
+                : `Stock en ${selectedWarehouse?.name || "el almacén"}`}
+            </span>
             <strong>
               {formatNumber(baseStock, locale)}{" "}
               {product?.unit || ""}

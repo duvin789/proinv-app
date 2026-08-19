@@ -7,12 +7,14 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   Category,
+  InventoryBalance,
   InventoryMovement,
   MemberRole,
   MovementReason,
   MovementType,
   Organization,
   Product,
+  ProductSubstitute,
   Supplier,
   Warehouse,
   WorkspaceData,
@@ -88,10 +90,23 @@ interface DbProduct {
 }
 
 interface DbBalance {
+  organization_id: string;
   product_id: string;
   warehouse_id: string;
   current_stock: number | string;
   average_cost: number | string;
+  updated_at: string;
+}
+
+interface DbProductSubstitute {
+  id: string;
+  organization_id: string;
+  product_id: string;
+  substitute_product_id: string;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface DbMovement {
@@ -199,6 +214,32 @@ async function loadProducts(
   );
 }
 
+async function loadProductSubstitutes(
+  supabase: SupabaseServerClient,
+  organizationId: string,
+): Promise<PagedQueryResult> {
+  const result = await loadAllRows(async (from, to) => {
+    const { data, error } = await supabase
+      .from("product_substitutes")
+      .select(
+        "id, organization_id, product_id, substitute_product_id, note, created_by, created_at, updated_at",
+      )
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+    return { data, error };
+  });
+
+  if (
+    result.error?.code === "42P01" ||
+    result.error?.code === "PGRST205"
+  ) {
+    return { data: [], error: null };
+  }
+  return result;
+}
+
 export async function loadWorkspaceData(): Promise<WorkspaceData> {
   if (!isSupabaseConfigured()) {
     throw new Error(
@@ -239,6 +280,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     warehousesResult,
     productsResult,
     balancesResult,
+    productSubstitutesResult,
     movementsResult,
   ] = await Promise.all([
     supabase
@@ -295,13 +337,16 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     loadAllRows(async (from, to) => {
       const { data, error } = await supabase
         .from("inventory_balances")
-        .select("product_id, warehouse_id, current_stock, average_cost")
+        .select(
+          "organization_id, product_id, warehouse_id, current_stock, average_cost, updated_at",
+        )
         .eq("organization_id", organizationId)
         .order("product_id", { ascending: true })
         .order("warehouse_id", { ascending: true })
         .range(from, to);
       return { data, error };
     }),
+    loadProductSubstitutes(supabase, organizationId),
     supabase
       .from("inventory_movements")
       .select(
@@ -321,6 +366,7 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     warehousesResult,
     productsResult,
     balancesResult,
+    productSubstitutesResult,
     movementsResult,
   ]);
 
@@ -336,6 +382,8 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
   const dbWarehouses = (warehousesResult.data ?? []) as unknown as DbWarehouse[];
   const dbProducts = (productsResult.data ?? []) as unknown as DbProduct[];
   const dbBalances = (balancesResult.data ?? []) as unknown as DbBalance[];
+  const dbProductSubstitutes = (productSubstitutesResult.data ??
+    []) as unknown as DbProductSubstitute[];
   const dbMovements = (movementsResult.data ?? []) as unknown as DbMovement[];
 
   const balanceMap = new Map<
@@ -433,6 +481,28 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     };
   });
 
+  const inventoryBalances: InventoryBalance[] = dbBalances.map((balance) => ({
+    organizationId: balance.organization_id,
+    productId: balance.product_id,
+    warehouseId: balance.warehouse_id,
+    currentStock: toNumber(balance.current_stock),
+    averageCost: toNumber(balance.average_cost),
+    updatedAt: balance.updated_at,
+  }));
+
+  const productSubstitutes: ProductSubstitute[] = dbProductSubstitutes.map(
+    (relation) => ({
+      id: relation.id,
+      organizationId: relation.organization_id,
+      productId: relation.product_id,
+      substituteProductId: relation.substitute_product_id,
+      note: relation.note,
+      createdBy: relation.created_by,
+      createdAt: relation.created_at,
+      updatedAt: relation.updated_at,
+    }),
+  );
+
   const movements: InventoryMovement[] = dbMovements.map((movement) => ({
     id: movement.id,
     organizationId: movement.organization_id,
@@ -467,6 +537,8 @@ export async function loadWorkspaceData(): Promise<WorkspaceData> {
     suppliers,
     warehouses,
     products,
+    inventoryBalances,
+    productSubstitutes,
     movements,
   };
 }
