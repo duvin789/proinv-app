@@ -1483,6 +1483,14 @@ button {
   border-radius: 12px;
 }
 
+.product-image-modal-frame img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 .product-image-modal-body p {
   margin: 0;
   color: var(--muted);
@@ -4739,3 +4747,4 @@ button {
     flex-direction: column;
   }
 }
+
